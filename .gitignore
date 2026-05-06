@@ -1,0 +1,7 @@
+/dataset/
+/outputs/
+/yolo26x-pose_openvino_model/
+*.pt
+.idea
+.vscode
+.DS_Store
