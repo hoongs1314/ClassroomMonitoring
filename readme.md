@@ -47,6 +47,9 @@ yolo pose predict model=yolo26x-pose_openvino_model source=inputs/t6.png imgsz=3
 - 解决方法：单独分块放大后再次识别
 ### 部分遮挡人物识别不出
 - 解决方法：分步检测，先粗检测人框，再根据面部特征检测姿态
+### 模型调用时机问题
+- 解决方法：将检测异常分阶段：candidate、active、closed，只在active调用
+- 事件变化再触发模型调用
 
 
 # 数据集

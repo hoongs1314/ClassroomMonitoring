@@ -1,13 +1,11 @@
 import { createApp, ref, computed, onMounted, onBeforeUnmount, nextTick } from "vue";
 
 import {
-  Alert,
   Button,
+  message,
   Modal,
   Spin,
-  Tag,
-  Table,
-  TableColumn} from './antd.esm.js'
+  Tag} from './antd.esm.js'
 
 const API_BASE = window.MONITOR_API_BASE || "http://127.0.0.1:8001";
 
@@ -15,19 +13,32 @@ const App = {
   setup() {
     const loading = ref(true);
     const starting = ref(false);
-    const describing = ref({});
-    const statusData = ref(null);
-    const selectedEvent = ref(null);
-    const detailVisible = ref(false);
-    const errorMessage = ref("");
-    const infoMessage = ref("");
-    const pollTimer = ref(null);
-    const videoRef = ref(null);
+    const status = ref(null);
+    const curEvent = ref(null);
+    const showDetail = ref(false);
+    const loadingDetail = ref(false);
+    const timer = ref(null);
+    const video = ref(null);
+    const playing = ref(false);
+    const volume = ref(0);
 
     const levelColor = (level) => {
       if (level === "STRONG") return "red";
       if (level === "WEAK") return "gold";
       return "blue";
+    };
+
+    const reminderColor = (level) => {
+      if (level === "FOCUS") return "red";
+      return "blue";
+    };
+
+    const statusText = (status, fallback = "") => {
+      if (status === "STRONG") return "明显异常";
+      if (status === "WEAK") return "轻度异常";
+      if (status === "NORMAL") return "正常";
+      if (status === "INVALID") return "无效";
+      return fallback || status;
     };
 
     const formatRatio = (value) => {
@@ -51,179 +62,181 @@ const App = {
       return payload;
     };
 
-    const events = computed(() => statusData.value?.events || []);
-    const hasSelection = computed(() => !!selectedEvent.value);
+    const events = computed(() => status.value?.events || []);
+    const focusEventCount = computed(() => events.value.filter((item) => item.reminder_level === "FOCUS").length);
+    const normalEventCount = computed(() => events.value.filter((item) => item.reminder_level !== "FOCUS").length);
 
     const refreshSelectedEvent = async (eventId) => {
-      selectedEvent.value = await requestJson(`/api/events/${eventId}`);
+      loadingDetail.value = true;
+      try {
+        curEvent.value = await requestJson(`/api/events/${eventId}`);
+      } finally {
+        loadingDetail.value = false;
+      }
     };
 
-    const refreshStatus = async (keepSelection = true) => {
+    const refreshStatus = async () => {
       try {
-        const status = await requestJson("/api/monitor/status");
-        statusData.value = status;
+        status.value = await requestJson("/api/monitor/status");
 
-        if (!status.events.length) {
-          selectedEvent.value = null;
+        if (!status.value.events.length) {
+          curEvent.value = null;
+          showDetail.value = false;
           return;
         }
-
-        const eventId = keepSelection && selectedEvent.value
-          ? selectedEvent.value.event_id
-          : status.events[0].event_id;
-
-        const picked = status.events.find((item) => item.event_id === eventId) || status.events[0];
-        await refreshSelectedEvent(picked.event_id);
       } catch (error) {
-        errorMessage.value = error.message || "状态加载失败";
+        message.error(error.message || "状态加载失败");
       } finally {
         loading.value = false;
       }
     };
 
     const startPolling = () => {
-      if (pollTimer.value) {
-        clearInterval(pollTimer.value);
+      if (timer.value) {
+        clearInterval(timer.value);
       }
-      pollTimer.value = setInterval(() => {
+      timer.value = setInterval(() => {
         refreshStatus();
       }, 2000);
     };
 
     const startMonitor = async () => {
       starting.value = true;
-      errorMessage.value = "";
-      infoMessage.value = "";
 
       try {
         const result = await requestJson("/api/monitor/start", { method: "POST" });
-        infoMessage.value = result.message || "监控已启动";
-        await refreshStatus(false);
+        message.success(result.message || "监控已启动");
+        await refreshStatus();
 
         await nextTick();
-        if (videoRef.value) {
-          videoRef.value.currentTime = 0;
-          await videoRef.value.play().catch(() => {});
+        if (video.value) {
+          video.value.currentTime = 0;
+          await video.value.play().catch(() => {});
+          playing.value = !video.value.paused;
         }
       } catch (error) {
-        errorMessage.value = error.message || "启动监控失败";
+        message.error(error.message || "启动监控失败");
       } finally {
         starting.value = false;
       }
     };
 
-    const selectEvent = async (eventId) => {
-      try {
-        selectedEvent.value = await requestJson(`/api/events/${eventId}`);
-        detailVisible.value = true;
-      } catch (error) {
-        errorMessage.value = error.message || "事件详情加载失败";
+    const syncVideoState = () => {
+      if (!video.value) {
+        return;
       }
+      playing.value = !video.value.paused;
+      volume.value = Math.round((video.value.muted ? 0 : video.value.volume) * 100);
     };
 
-    const describeCrop = async (eventId, personId) => {
-      const key = `${eventId}_${personId}`;
-      describing.value[key] = true;
-      errorMessage.value = "";
+    const toggleVideoPlayback = async () => {
+      if (!video.value) {
+        return;
+      }
+
+      if (video.value.paused) {
+        await video.value.play().catch(() => {});
+      } else {
+        video.value.pause();
+      }
+      syncVideoState();
+    };
+
+    const updateVideoVolume = (e) => {
+      if (!video.value) {
+        return;
+      }
+      const nextVolume = Number(e.target.value) / 100;
+      video.value.volume = nextVolume;
+      video.value.muted = nextVolume <= 0;
+      syncVideoState();
+    };
+
+    const selectEvent = async (eventId) => {
       try {
-        await requestJson(`/api/events/${eventId}/persons/${personId}/describe`, { method: "POST" });
+        showDetail.value = true;
+        curEvent.value = null;
         await refreshSelectedEvent(eventId);
       } catch (error) {
-        errorMessage.value = error.message || "描述生成失败";
-      } finally {
-        describing.value[key] = false;
+        showDetail.value = false;
+        message.error(error.message || "事件详情加载失败");
       }
     };
 
     onMounted(async () => {
-      await refreshStatus(false);
+      await refreshStatus();
       startPolling();
     });
 
     onBeforeUnmount(() => {
-      if (pollTimer.value) {
-        clearInterval(pollTimer.value);
+      if (timer.value) {
+        clearInterval(timer.value);
       }
     });
 
     return {
       loading,
       starting,
-      describing,
-      statusData,
-      selectedEvent,
-      detailVisible,
-      hasSelection,
+      status,
+      curEvent,
+      showDetail,
+      loadingDetail,
       events,
-      errorMessage,
-      infoMessage,
-      videoRef,
+      focusEventCount,
+      normalEventCount,
+      video,
+      playing,
+      volume,
       levelColor,
+      reminderColor,
+      statusText,
       formatRatio,
       mediaUrl,
       startMonitor,
       selectEvent,
-      describeCrop,
       refreshStatus,
+      toggleVideoPlayback,
+      updateVideoVolume,
+      syncVideoState,
     };
   },
   template: `
     <div class="page-shell">
       <div class="page-header">
         <div>
-          <h1 class="page-title">课堂异常事件 Demo</h1>
+          <h1 class="page-title">课堂异常行为监测</h1>
           <div class="page-subtitle">
-            前端和后端独立运行。左侧模拟实时监控，右侧通过接口持续拉取异常事件。
+            教室监控实时检测，请及时关注异常提醒。
           </div>
         </div>
-        <div class="meta-strip" v-if="statusData">
+        <div class="meta-strip" v-if="status">
           <div class="meta-card">
-            <div class="meta-label">视频时长</div>
-            <div class="meta-value">{{ statusData.duration_time }}</div>
+            <div class="meta-label">监控状态</div>
+            <div class="meta-value">
+              {{ status.running ? '监控中' : (status.completed ? '已完成' : '待启动') }}
+            </div>
           </div>
           <div class="meta-card">
             <div class="meta-label">已分析到</div>
-            <div class="meta-value">{{ statusData.current_time }}</div>
+            <div class="meta-value">{{ status.current_time }}</div>
           </div>
           <div class="meta-card">
             <div class="meta-label">异常事件数</div>
-            <div class="meta-value">{{ statusData.event_count }}</div>
+            <div class="meta-value">{{ status.event_count }}</div>
           </div>
           <div class="meta-card">
-            <div class="meta-label">状态</div>
-            <div class="meta-value">
-              {{ statusData.running ? '监控中' : (statusData.completed ? '已完成' : '待启动') }}
-            </div>
+            <div class="meta-label">监测间隔</div>
+            <div class="meta-value">{{ status.frame_interval_seconds }} 秒</div>
           </div>
         </div>
       </div>
 
-      <a-alert
-        v-if="errorMessage"
-        type="error"
-        :message="errorMessage"
-        show-icon
-        style="margin-bottom: 16px;"
-      />
-      <a-alert
-        v-if="infoMessage"
-        type="info"
-        :message="infoMessage"
-        show-icon
-        style="margin-bottom: 16px;"
-      />
-
       <a-spin :spinning="loading">
-        <template v-if="statusData">
+        <template v-if="status">
           <div class="hero-layout">
             <div class="surface-card video-panel">
               <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:14px;">
-                <div>
-                  <h2 class="panel-title">监控主画面</h2>
-                  <div class="panel-note">
-                    点击启动后，视频播放和后端分析会同步推进，右侧异常信息会陆续出现。
-                  </div>
-                </div>
+                <h2 class="panel-title">监控主画面</h2>
                 <div style="display:flex;gap:10px;">
                   <a-button @click="refreshStatus()">刷新</a-button>
                   <a-button type="primary" :loading="starting" @click="startMonitor">
@@ -234,12 +247,34 @@ const App = {
 
               <div class="video-box">
                 <video
-                  ref="videoRef"
-                  v-if="statusData.video_url"
-                  :src="mediaUrl(statusData.video_url)"
-                  controls
+                  ref="video"
+                  v-if="status.video_url"
+                  :src="mediaUrl(status.video_url)"
                   muted
+                  playsinline
+                  @play="syncVideoState"
+                  @pause="syncVideoState"
+                  @volumechange="syncVideoState"
                 ></video>
+                <button
+                  type="button"
+                  class="video-overlay-control video-play-toggle"
+                  @click="toggleVideoPlayback"
+                  :title="playing ? '暂停' : '播放'"
+                >
+                  {{ playing ? '⏸' : '▶' }}
+                </button>
+                <div class="video-sound-control">
+                  <input
+                    class="video-volume-slider"
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    :value="volume"
+                    @input="updateVideoVolume"
+                  />
+                </div>
               </div>
             </div>
 
@@ -248,7 +283,21 @@ const App = {
                 <div>
                   <h2 class="panel-title">异常事件列表</h2>
                   <div class="panel-note">
-                    这里通过接口轮询后端结果，不再预先离线读取本地 JSON。
+                    点击卡片查看异常分析详情
+                  </div>
+                </div>
+                <div class="event-stat-strip">
+                  <div class="event-stat-chip">
+                    <span class="event-stat-label">总数</span>
+                    <strong>{{ events.length }}</strong>
+                  </div>
+                  <div class="event-stat-chip strong">
+                    <span class="event-stat-label">重点提醒</span>
+                    <strong>{{ focusEventCount }}</strong>
+                  </div>
+                  <div class="event-stat-chip weak">
+                    <span class="event-stat-label">普通提醒</span>
+                    <strong>{{ normalEventCount }}</strong>
                   </div>
                 </div>
               </div>
@@ -258,172 +307,147 @@ const App = {
                   v-for="event in events"
                   :key="event.event_id"
                   class="event-card"
-                  :class="{ 'is-active': selectedEvent && selectedEvent.event_id === event.event_id }"
+                  :class="{ 'is-active': curEvent && curEvent.event_id === event.event_id }"
                   @click="selectEvent(event.event_id)"
                 >
                   <img
-                    v-if="event.event_debug_image_url"
+                    v-if="event.list_image_url"
                     class="event-card-thumb"
-                    :src="mediaUrl(event.event_debug_image_url)"
+                    :src="mediaUrl(event.list_image_url)"
                     :alt="'event-' + event.event_id"
                   />
                   <div class="event-card-body">
                     <div class="event-card-top">
-                      <div class="event-card-id">事件 {{ String(event.event_id).padStart(3, '0') }}</div>
-                      <a-tag :color="levelColor(event.level)">{{ event.level }}</a-tag>
+                      <div class="event-card-id">{{ event.list_title || '位置待确认，疑似异常' }}</div>
+                      <a-tag :color="reminderColor(event.reminder_level)">{{ event.reminder_text }}</a-tag>
                     </div>
-                    <div class="event-card-time">{{ event.start_time }} ~ {{ event.end_time }}</div>
-                    <div class="event-card-time">持续 {{ event.frame_count }} 帧 | 峰值比例 {{ formatRatio(event.peak_ratio) }}</div>
+                    <div class="event-card-text" :title="event.list_description || (event.list_description_error ? '模型调用失败' : '正在生成异常描述...')">
+                      {{ event.list_description || (event.list_description_error ? '模型调用失败' : '正在生成异常描述...') }}
+                    </div>
                   </div>
                 </div>
               </div>
-              <div v-else class="empty-state">监控已启动后，这里会逐步出现异常事件。</div>
+              <div v-else class="empty-state">暂无异常。</div>
             </div>
           </div>
         </template>
       </a-spin>
 
       <a-modal
-        v-model:open="detailVisible"
+        v-model:open="showDetail"
         :footer="null"
         width="1200px"
         centered
         destroyOnClose
       >
         <template #title>
-          <span v-if="selectedEvent">事件 {{ String(selectedEvent.event_id).padStart(3, '0') }}</span>
+          <span v-if="curEvent">{{ curEvent.list_title || ('事件 ' + String(curEvent.event_id).padStart(3, '0')) }}</span>
+          <span v-else>异常详情</span>
         </template>
 
-        <template v-if="selectedEvent">
+        <div v-if="loadingDetail" class="detail-loading-shell">
+          <div class="detail-loading-card">
+            <div class="detail-loading-line detail-loading-line-lg"></div>
+            <div class="detail-loading-line detail-loading-line-md"></div>
+            <div class="detail-loading-grid">
+              <div class="detail-loading-block"></div>
+              <div class="detail-loading-block"></div>
+              <div class="detail-loading-block"></div>
+              <div class="detail-loading-block"></div>
+            </div>
+            <div class="detail-loading-gallery">
+              <div class="detail-loading-frame"></div>
+              <div class="detail-loading-frame"></div>
+              <div class="detail-loading-frame"></div>
+            </div>
+          </div>
+        </div>
+        <template v-else-if="curEvent">
           <div class="modal-detail-body">
             <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;">
               <div>
-                <div class="panel-note">{{ selectedEvent.summary }}</div>
+                <div class="panel-note">{{ curEvent.summary_text }}</div>
               </div>
-              <a-tag :color="levelColor(selectedEvent.level)" style="font-size:14px;padding:6px 12px;">
-                {{ selectedEvent.level }}
+              <a-tag :color="reminderColor(curEvent.reminder_level)" style="font-size:14px;padding:6px 12px;">
+                {{ curEvent.reminder_text }}
               </a-tag>
             </div>
 
             <div class="summary-grid">
               <div class="summary-card">
-                <div class="summary-label">开始时间</div>
-                <div class="summary-value">{{ selectedEvent.start_time }}</div>
+                <div class="summary-label">提醒级别</div>
+                <div class="summary-value">{{ curEvent.reminder_text }}</div>
               </div>
               <div class="summary-card">
-                <div class="summary-label">结束时间</div>
-                <div class="summary-value">{{ selectedEvent.end_time }}</div>
+                <div class="summary-label">时间区间</div>
+                <div class="summary-value">{{ curEvent.alert_start_time || curEvent.start_time }}</div>
+                <div class="summary-subvalue">至 {{ curEvent.end_time }}</div>
               </div>
               <div class="summary-card">
                 <div class="summary-label">持续秒数</div>
-                <div class="summary-value">{{ selectedEvent.duration_seconds }}</div>
-              </div>
-              <div class="summary-card">
-                <div class="summary-label">持续帧数</div>
-                <div class="summary-value">{{ selectedEvent.frame_count }}</div>
+                <div class="summary-value">{{ curEvent.duration_seconds }}</div>
               </div>
               <div class="summary-card">
                 <div class="summary-label">峰值比例</div>
-                <div class="summary-value">{{ formatRatio(selectedEvent.peak_ratio) }}</div>
+                <div class="summary-value">{{ formatRatio(curEvent.peak_ratio) }}</div>
               </div>
               <div class="summary-card">
                 <div class="summary-label">峰值学生 ID</div>
-                <div class="summary-value">{{ selectedEvent.peak_person_id }}</div>
+                <div class="summary-value">{{ curEvent.peak_person_id }}</div>
               </div>
-            </div>
-
-            <div class="detail-hero">
-              <img
-                v-if="selectedEvent.event_debug_image_url"
-                class="detail-image"
-                :src="mediaUrl(selectedEvent.event_debug_image_url)"
-                alt="event-debug"
-              />
-              <img
-                v-if="selectedEvent.event_raw_image_url"
-                class="detail-image"
-                :src="mediaUrl(selectedEvent.event_raw_image_url)"
-                alt="event-raw"
-              />
             </div>
 
             <div style="margin-top:22px;">
-              <h3 class="panel-title" style="margin-bottom:6px;">异常学生截图</h3>
-              <div class="panel-note">这里展示学生框和附近区域。描述由后端通过 LangChain 调通义千问多模态模型生成。</div>
+              <h3 class="panel-title" style="margin-bottom:6px;">异常明细</h3>
+              <div class="panel-note">按抽取帧显示异常聚焦截图</div>
 
-              <div v-if="selectedEvent.event_crops && selectedEvent.event_crops.length" class="crop-grid">
-                <div v-for="crop in selectedEvent.event_crops" :key="crop.image_url" class="crop-card">
-                  <img class="crop-image" :src="mediaUrl(crop.image_url)" alt="event-crop" />
-                  <div class="crop-body">
-                    <div class="crop-title">
-                      <strong>学生 {{ crop.person_id }}</strong>
-                      <a-tag :color="levelColor(crop.status)">{{ crop.status }}</a-tag>
+              <div class="detail-record-grid">
+                <div
+                  v-for="record in (curEvent.frames || [])"
+                  :key="record.frame_index + '-' + record.person.id"
+                  class="detail-record-card"
+                >
+                  <img
+                    v-if="record.focus_image_url"
+                    class="detail-record-image"
+                    :src="mediaUrl(record.focus_image_url)"
+                    alt="frame-focus"
+                  />
+                  <div class="detail-record-body">
+                    <div class="detail-record-header">
+                      <strong>第 {{ record.frame_index }} 帧</strong>
+                      <a-tag :color="levelColor(record.person.status)">{{ record.person.status_text || statusText(record.person.status) }}</a-tag>
                     </div>
-                    <div class="panel-note" style="margin-bottom:12px;">比例值 {{ formatRatio(crop.ratio) }}</div>
-
-                    <div v-if="crop.description" class="description-box">
-                      {{ crop.description }}
+                    <div class="detail-record-meta">
+                      <span>时间 {{ record.time }}</span>
+                      <span>学生ID {{ record.person.id }}</span>
+                      <span>比例值 {{ formatRatio(record.person.ratio) }}</span>
+                      <span>置信度 {{ record.person.box_conf }}</span>
                     </div>
-                    <div v-else class="placeholder-box">
-                      还没有异常描述。
-                    </div>
-
-                    <a-button
-                      type="primary"
-                      block
-                      style="margin-top:12px;"
-                      :loading="describing[selectedEvent.event_id + '_' + crop.person_id]"
-                      @click="describeCrop(selectedEvent.event_id, crop.person_id)"
-                    >
-                      生成异常描述
-                    </a-button>
+                    <div class="panel-note">位置：{{ record.person.position_text }}</div>
                   </div>
                 </div>
               </div>
-              <div v-else class="empty-state">当前事件没有可用的人物聚焦截图。</div>
-            </div>
 
-            <div class="table-wrap">
-              <h3 class="panel-title" style="margin-bottom:10px;">事件内帧记录</h3>
-              <a-table
-                size="middle"
-                :pagination="{ pageSize: 6, hideOnSinglePage: true }"
-                :data-source="selectedEvent.frames"
-                :row-key="(row) => row.frame_index + '-' + row.person.id"
+              <div
+                v-if="!curEvent.frames || !curEvent.frames.length"
+                class="empty-state"
               >
-                <a-table-column title="帧号" data-index="frame_index" key="frame_index" />
-                <a-table-column title="时间" data-index="time" key="time" />
-                <a-table-column title="学生ID" key="person_id">
-                  <template #default="{ record }">{{ record.person.id }}</template>
-                </a-table-column>
-                <a-table-column title="状态" key="status">
-                  <template #default="{ record }">
-                    <a-tag :color="levelColor(record.person.status)">{{ record.person.status }}</a-tag>
-                  </template>
-                </a-table-column>
-                <a-table-column title="比例值" key="ratio">
-                  <template #default="{ record }">{{ formatRatio(record.person.ratio) }}</template>
-                </a-table-column>
-                <a-table-column title="置信度" key="box_conf">
-                  <template #default="{ record }">{{ record.person.box_conf }}</template>
-                </a-table-column>
-              </a-table>
+                当前事件没有可用的异常明细。
+              </div>
             </div>
           </div>
         </template>
+        <div v-else class="empty-state">当前事件详情暂时不可用。</div>
       </a-modal>
     </div>
   `,
 };
 
 const app = createApp(App);
-
-app.use(Alert);
 app.use(Button);
 app.use(Modal);
 app.use(Spin);
 app.use(Tag);
-app.use(Table);
-app.use(TableColumn);
 
 app.mount("#app");

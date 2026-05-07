@@ -6,51 +6,30 @@ from pathlib import Path
 import cv2
 from ultralytics import YOLO
 
-from pose_utils import PoseConfig, PoseDebugUtils
-
-VIDEO_PATH = Path("inputs/video/test.mp4")
-
-OUTPUT_DIR = Path("outputs/video_debug")
-RAW_FRAME_OUTPUT_DIR = OUTPUT_DIR / "raw_frames"
-DEBUG_FRAME_OUTPUT_DIR = OUTPUT_DIR / "frames"
-EVENT_OUTPUT_DIR = OUTPUT_DIR / "events"
-EVENT_CROP_OUTPUT_DIR = EVENT_OUTPUT_DIR / "crops"
-
-FRAME_JSON_PATH = OUTPUT_DIR / "frame_result.json"
-EVENT_JSON_PATH = OUTPUT_DIR / "event_result.json"
-
-for path in [
-    OUTPUT_DIR,
-    RAW_FRAME_OUTPUT_DIR,
-    DEBUG_FRAME_OUTPUT_DIR,
-    EVENT_OUTPUT_DIR,
-    EVENT_CROP_OUTPUT_DIR,
-]:
-    path.mkdir(parents=True, exist_ok=True)
-
-MODEL_NAME = "yolo26s-pose.pt"
-
-# YOLO 推理参数
-IMG_SIZE = 3200
-CONF = 0.15
-IOU = 0.7
-
-# 每隔几秒抽一帧
-FRAME_INTERVAL_SECONDS = 5
-
-# 连续两次异常帧最多允许隔多久，超过就当成新事件。
-EVENT_GAP_SECONDS = FRAME_INTERVAL_SECONDS * 1.5
-
-POSE_CONFIG = PoseConfig(
-    keypoint_conf_threshold=0.3,
-    strong_suspect_ratio=0.0,
-    weak_suspect_ratio=0.10,
+from config import (
+    CONF,
+    EVENT_CROP_DIR,
+    EVENT_DIR,
+    EVENT_GAP_SEC,
+    EVENT_JSON_FILE,
+    FRAME_JSON_FILE,
+    FRAME_SEC,
+    IMG_SIZE,
+    IOU,
+    MODEL_PATH,
+    POSE_RULE,
+    RAW_FRAME_DIR,
+    VIDEO_FILE,
+    VIDEO_REL_PATH,
+    make_output_dirs,
 )
+from pose_utils import PoseDebugUtils
 
+make_output_dirs()
 
 def ensure_output_dirs_clean():
-    # demo 场景里，每次直接覆盖最新结果，比保留很多旧文件更省事。
-    for path in [RAW_FRAME_OUTPUT_DIR, DEBUG_FRAME_OUTPUT_DIR, EVENT_OUTPUT_DIR]:
+    # 每次直接覆盖最新结果
+    for path in [RAW_FRAME_DIR, EVENT_DIR]:
         if not path.exists():
             continue
         for child in path.iterdir():
@@ -59,7 +38,7 @@ def ensure_output_dirs_clean():
             else:
                 child.unlink()
 
-    EVENT_CROP_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    EVENT_CROP_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def status_score(status: str) -> int:
@@ -138,7 +117,7 @@ def save_focus_crop(raw_image, person: dict, event_id: int) -> dict | None:
         2,
     )
 
-    crop_path = EVENT_CROP_OUTPUT_DIR / (
+    crop_path = EVENT_CROP_DIR / (
         f"event_{event_id:03d}_peak_{person['status'].lower()}_focus.jpg"
     )
     cv2.imwrite(str(crop_path), crop, [cv2.IMWRITE_JPEG_QUALITY, 100])
@@ -155,15 +134,8 @@ def save_focus_crop(raw_image, person: dict, event_id: int) -> dict | None:
 
 def save_raw_frame(frame, frame_index: int, timestamp_seconds: float, pose_utils: PoseDebugUtils) -> Path:
     frame_time_name = pose_utils.format_time_file(timestamp_seconds)
-    output_path = RAW_FRAME_OUTPUT_DIR / f"frame_{frame_index:06d}_{frame_time_name}_raw.png"
+    output_path = RAW_FRAME_DIR / f"frame_{frame_index:06d}_{frame_time_name}_raw.png"
     cv2.imwrite(str(output_path), frame)
-    return output_path
-
-
-def save_debug_frame(debug_image, frame_index: int, timestamp_seconds: float, pose_utils: PoseDebugUtils) -> Path:
-    frame_time_name = pose_utils.format_time_file(timestamp_seconds)
-    output_path = DEBUG_FRAME_OUTPUT_DIR / f"frame_{frame_index:06d}_{frame_time_name}_debug.jpg"
-    cv2.imwrite(str(output_path), debug_image, [cv2.IMWRITE_JPEG_QUALITY, 100])
     return output_path
 
 
@@ -196,7 +168,6 @@ def analyze_frame(
         "time": frame_time_display,
         "timestamp_seconds": round(float(timestamp_seconds), 3),
         "raw_frame": str(raw_frame_path).replace("\\", "/"),
-        "debug_image": "",
         "frame_width": int(width),
         "frame_height": int(height),
         "person_count": 0,
@@ -220,10 +191,7 @@ def analyze_frame(
     )[0]
     frame_record["infer_seconds"] = round(time.time() - start_time, 3)
 
-    debug_image = frame.copy()
     if result.boxes is None or result.keypoints is None:
-        debug_output_path = save_debug_frame(debug_image, frame_index, timestamp_seconds, pose_utils)
-        frame_record["debug_image"] = str(debug_output_path).replace("\\", "/")
         return frame_record
 
     boxes = result.boxes.xyxy
@@ -258,27 +226,10 @@ def analyze_frame(
         if pose_status in {"WEAK", "STRONG"}:
             frame_record["suspicious_count"] += 1
 
-        x1_i, y1_i, x2_i, y2_i = map(int, [x1, y1, x2, y2])
-        cv2.rectangle(
-            debug_image,
-            (x1_i, y1_i),
-            (x2_i, y2_i),
-            pose_utils.get_box_color(pose_status),
-            2,
-        )
-
-        if ratio_result.valid:
-            label = f"ID:{i + 1} {pose_status} r:{ratio_result.ratio:.3f}"
-        else:
-            label = f"ID:{i + 1} INVALID {ratio_result.reason}"
-
-        pose_utils.put_label(debug_image, label, max(0, x1_i), max(25, y1_i - 8))
         frame_record["persons"].append(
             build_person_record(i + 1, box, box_confs[i], pose_status, ratio_result)
         )
 
-    debug_output_path = save_debug_frame(debug_image, frame_index, timestamp_seconds, pose_utils)
-    frame_record["debug_image"] = str(debug_output_path).replace("\\", "/")
     return frame_record
 
 
@@ -315,12 +266,10 @@ def start_event(event_id: int, frame_record: dict, person: dict) -> dict:
                 "frame_index": frame_record["frame_index"],
                 "time": frame_record["time"],
                 "timestamp_seconds": frame_record["timestamp_seconds"],
-                "debug_image": frame_record["debug_image"],
                 "raw_frame": frame_record["raw_frame"],
                 "person": person,
             }
         ],
-        "event_debug_image": "",
         "event_raw_image": "",
         "event_crops": [],
     }
@@ -332,7 +281,6 @@ def append_event_frame(event: dict, frame_record: dict, person: dict):
             "frame_index": frame_record["frame_index"],
             "time": frame_record["time"],
             "timestamp_seconds": frame_record["timestamp_seconds"],
-            "debug_image": frame_record["debug_image"],
             "raw_frame": frame_record["raw_frame"],
             "person": person,
         }
@@ -410,7 +358,7 @@ def build_events(frame_records: list[dict]) -> list[dict]:
         still_active = []
         for event in active_events:
             gap_seconds = frame_record["timestamp_seconds"] - event["end_timestamp_seconds"]
-            if gap_seconds > EVENT_GAP_SECONDS:
+            if gap_seconds > EVENT_GAP_SEC:
                 finalize_event(event)
                 events.append(event)
             else:
@@ -464,16 +412,8 @@ def save_event_assets(events: list[dict]):
         if peak_frame is None:
             continue
 
-        debug_src = Path(peak_frame["debug_image"])
         raw_src = Path(peak_frame["raw_frame"])
-        debug_dst = EVENT_OUTPUT_DIR / f"event_{event['event_id']:03d}_debug.jpg"
-        raw_dst = EVENT_OUTPUT_DIR / f"event_{event['event_id']:03d}_raw.png"
-
-        shutil.copy2(debug_src, debug_dst)
-        shutil.copy2(raw_src, raw_dst)
-
-        event["event_debug_image"] = str(debug_dst).replace("\\", "/")
-        event["event_raw_image"] = str(raw_dst).replace("\\", "/")
+        event["event_raw_image"] = str(raw_src).replace("\\", "/")
 
         raw_image = cv2.imread(str(raw_src))
         if raw_image is None:
@@ -485,19 +425,19 @@ def save_event_assets(events: list[dict]):
 
 
 def main():
-    if not VIDEO_PATH.exists():
-        print(f"视频不存在：{VIDEO_PATH}")
+    if not VIDEO_FILE.exists():
+        print(f"视频不存在：{VIDEO_FILE}")
         return
 
     ensure_output_dirs_clean()
 
-    print(f"加载模型：{MODEL_NAME}")
-    model = YOLO(MODEL_NAME)
-    pose_utils = PoseDebugUtils(POSE_CONFIG)
+    print(f"加载模型：{MODEL_PATH}")
+    model = YOLO(str(MODEL_PATH))
+    pose_utils = PoseDebugUtils(POSE_RULE)
 
-    cap = cv2.VideoCapture(str(VIDEO_PATH))
+    cap = cv2.VideoCapture(str(VIDEO_FILE))
     if not cap.isOpened():
-        print(f"视频打开失败：{VIDEO_PATH}")
+        print(f"视频打开失败：{VIDEO_FILE}")
         return
 
     fps = cap.get(cv2.CAP_PROP_FPS)
@@ -512,12 +452,12 @@ def main():
 
     first_height, first_width = first_frame.shape[:2]
 
-    print(f"视频路径：{VIDEO_PATH}")
+    print(f"视频路径：{VIDEO_REL_PATH}")
     print(f"FPS：{fps}")
     print(f"总帧数：{total_frames}")
     print(f"视频时长：{pose_utils.format_time_display(duration_seconds)}")
     print(f"视频原始解码帧尺寸：width={first_width}, height={first_height}")
-    print(f"抽帧间隔：{FRAME_INTERVAL_SECONDS} 秒")
+    print(f"抽帧间隔：{FRAME_SEC} 秒")
     print(f"模型参数：imgsz={IMG_SIZE}, conf={CONF}, iou={IOU}")
 
     frame_records = []
@@ -553,7 +493,7 @@ def main():
             f"耗时={frame_record['infer_seconds']}秒"
         )
 
-        timestamp_seconds += FRAME_INTERVAL_SECONDS
+        timestamp_seconds += FRAME_SEC
 
     cap.release()
 
@@ -561,12 +501,12 @@ def main():
     save_event_assets(events)
 
     frame_results = {
-        "video_path": str(VIDEO_PATH).replace("\\", "/"),
-        "model_name": MODEL_NAME,
+        "video_path": str(VIDEO_REL_PATH).replace("\\", "/"),
+        "model_name": str(MODEL_PATH),
         "imgsz": IMG_SIZE,
         "conf": CONF,
         "iou": IOU,
-        "frame_interval_seconds": FRAME_INTERVAL_SECONDS,
+        "frame_interval_seconds": FRAME_SEC,
         "fps": fps,
         "total_frames": total_frames,
         "duration_seconds": round(float(duration_seconds), 3),
@@ -576,25 +516,24 @@ def main():
     }
 
     event_results = {
-        "video_path": str(VIDEO_PATH).replace("\\", "/"),
-        "frame_interval_seconds": FRAME_INTERVAL_SECONDS,
-        "event_gap_seconds": EVENT_GAP_SECONDS,
+        "video_path": str(VIDEO_REL_PATH).replace("\\", "/"),
+        "frame_interval_seconds": FRAME_SEC,
+        "event_gap_seconds": EVENT_GAP_SEC,
         "event_count": len(events),
         "events": events,
     }
 
-    with open(FRAME_JSON_PATH, "w", encoding="utf-8") as f:
+    with open(FRAME_JSON_FILE, "w", encoding="utf-8") as f:
         json.dump(frame_results, f, ensure_ascii=False, indent=2)
 
-    with open(EVENT_JSON_PATH, "w", encoding="utf-8") as f:
+    with open(EVENT_JSON_FILE, "w", encoding="utf-8") as f:
         json.dump(event_results, f, ensure_ascii=False, indent=2)
 
     print("\n视频异常事件分析完成")
-    print(f"原始抽帧目录：{RAW_FRAME_OUTPUT_DIR}")
-    print(f"调试帧目录：{DEBUG_FRAME_OUTPUT_DIR}")
-    print(f"事件截图目录：{EVENT_OUTPUT_DIR}")
-    print(f"逐帧 JSON：{FRAME_JSON_PATH}")
-    print(f"事件 JSON：{EVENT_JSON_PATH}")
+    print(f"原始抽帧目录：{RAW_FRAME_DIR}")
+    print(f"事件截图目录：{EVENT_DIR}")
+    print(f"逐帧 JSON：{FRAME_JSON_FILE}")
+    print(f"事件 JSON：{EVENT_JSON_FILE}")
     print(f"异常事件数：{len(events)}")
 
 
