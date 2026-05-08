@@ -3,6 +3,7 @@ from pathlib import Path
 from ultralytics import YOLO
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
+MODEL_DIR = ROOT_DIR / "models"
 
 KEYPOINT_NAMES = [
     "nose", "left_eye", "right_eye", "left_ear", "right_ear",
@@ -24,7 +25,7 @@ def main():
         print(f"图片不存在: {image_path}")
         return
 
-    model = YOLO(str(ROOT_DIR / "yolo26x-pose.pt"))
+    model = YOLO(str(MODEL_DIR / "yolo26x-pose.pt"))
 
     start_time = time.time()
     results = model.predict(

@@ -5,6 +5,7 @@ import cv2
 from ultralytics import YOLO
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
+MODEL_DIR = ROOT_DIR / "models"
 
 # 输入。
 SELECTED_IMAGE_PATHS = [
@@ -17,7 +18,7 @@ OUTPUT_DIR = ROOT_DIR / "outputs" / "debug_pose_ratio"
 OUTPUT_DIR.mkdir(parents = True, exist_ok = True)
 
 # 轻量模型
-MODEL_NAME = str(ROOT_DIR / "yolo26n.pt")
+MODEL_NAME = str(MODEL_DIR / "yolo26n-pose.pt")
 IMG_SIZE = 1280
 CONF = 0.06
 NMS_IOU = 0.6

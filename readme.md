@@ -22,13 +22,13 @@ pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu12
 ```
 ```shell
 # 导出openvino
-yolo export model=yolo26x-pose.pt format=openvino imgsz=3200 conf=0.15 half=True dynamic=False
+yolo export model=models/yolo26x-pose.pt format=openvino imgsz=3200 conf=0.15 half=True dynamic=False
 
 # gpu测试
-yolo pose predict model=yolo26x-pose_openvino_model source=inputs/t6.png imgsz=3200 conf=0.15 device=intel:gpu project=outputs name=test_openvino_gpu
+yolo pose predict model=models/yolo26x-pose_openvino_model source=inputs/t6.png imgsz=3200 conf=0.15 device=intel:gpu project=outputs name=test_openvino_gpu
 
 # npu测试
-yolo pose predict model=yolo26x-pose_openvino_model source=inputs/t6.png imgsz=3200 conf=0.15 device=intel:npu project=outputs name=test_openvino_npu
+yolo pose predict model=models/yolo26x-pose_openvino_model source=inputs/t6.png imgsz=3200 conf=0.15 device=intel:npu project=outputs name=test_openvino_npu
 
 ```
 # 整体方案设计

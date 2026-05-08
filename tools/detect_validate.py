@@ -5,7 +5,7 @@ from pathlib import Path
 import cv2
 from ultralytics import YOLO
 
-from config import CONF, IOU, IMG_SIZE, ROOT_DIR
+from config import CONF, DETECT_MODEL, IOU, IMG_SIZE, ROOT_DIR
 
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
@@ -15,8 +15,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="用 detect 模型做图片验证，并保存每个人的单独截图。")
     parser.add_argument(
         "--model",
-        default=str(ROOT_DIR / "detect.pt"),
-        help="detect 模型路径，默认使用项目根目录下的 detect.pt",
+        default=str(DETECT_MODEL),
+        help="detect 模型路径，默认使用 models/detect.pt",
     )
     parser.add_argument(
         "--source",

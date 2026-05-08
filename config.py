@@ -8,46 +8,64 @@ ROOT_DIR = Path(__file__).resolve().parent
 VIDEO_REL_PATH = Path("inputs/video/test.mp4")
 VIDEO_FILE = ROOT_DIR / VIDEO_REL_PATH
 
-OUTPUT_DIR = ROOT_DIR / "outputs/video_debug"
-RAW_FRAME_DIR = OUTPUT_DIR / "raw_frames"
-EVENT_DIR = OUTPUT_DIR / "events"
-EVENT_CROP_DIR = EVENT_DIR / "crops"
-FRAME_FOCUS_DIR = EVENT_DIR / "frame_focus"
+OUT_DIR = ROOT_DIR / "outputs" / "video_debug"
+RAW_DIR = OUT_DIR / "raw_frames"
+EVENT_DIR = OUT_DIR / "events"
+CROP_DIR = EVENT_DIR / "crops"
+DETAIL_DIR = EVENT_DIR / "frame_focus"
+MODEL_DIR = ROOT_DIR / "models"
 
-FRAME_JSON_FILE = OUTPUT_DIR / "frame_result.json"
-EVENT_JSON_FILE = OUTPUT_DIR / "event_result.json"
-DESC_JSON_FILE = OUTPUT_DIR / "event_descriptions.json"
+SEAT_JSON_FILE = OUT_DIR / "seat_result.json"
+SEAT_MAP_FILE = OUT_DIR / "seat_map.jpg"
+FRAME_JSON_FILE = OUT_DIR / "frame_result.json"
+EVENT_JSON_FILE = OUT_DIR / "event_result.json"
+DESC_JSON_FILE = OUT_DIR / "event_descriptions.json"
 
-MODEL_PATH = ROOT_DIR / "yolo26n.pt"
+DETECT_MODEL = MODEL_DIR / "detect.pt"
+POSE_MODEL = MODEL_DIR / "yolo26s-pose.pt"
+
 IMG_SIZE = 3200
-CONF = 0.15
-IOU = 0.7
+DETECT_CONF = 0.15
+DETECT_IOU = 0.7
+POSE_CONF = 0.15
+POSE_IOU = 0.7
+SEAT_IMG_SIZE = 960
+SEAT_CROP_PAD = 0.45
+
 FRAME_SEC = 3
-EVENT_GAP_SEC = FRAME_SEC * 1.5
+SEAT_SEC = 1
+SEAT_FRAME_COUNT = 10
+EVENT_START_STRONG_FRAMES = 4
+EVENT_START_WEAK_FRAMES = 8
+EVENT_END_NORMAL_FRAMES = 3
 
 POSE_RULE = PoseConfig(
     keypoint_conf_threshold=0.3,
-    strong_suspect_ratio=0.0,
-    weak_suspect_ratio=0.10,
+    strong_suspect_ratio=-0.10,
+    weak_suspect_ratio=0.03,
 )
 
-QWEN_MODEL = "qwen3.5-plus-2026-02-15"
-QWEN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+QWEN_MODEL = os.getenv("QWEN_VL_MODEL", "qwen3-vl-plus")
+QWEN_BASE_URL = os.getenv(
+    "DASHSCOPE_BASE_URL",
+    "https://dashscope.aliyuncs.com/compatible-mode/v1",
+)
 
 
-def make_output_dirs():
-    for path in [OUTPUT_DIR, RAW_FRAME_DIR, EVENT_DIR, EVENT_CROP_DIR, FRAME_FOCUS_DIR]:
+def make_dirs():
+    for path in [OUT_DIR, RAW_DIR, EVENT_DIR, CROP_DIR, DETAIL_DIR, MODEL_DIR]:
         path.mkdir(parents=True, exist_ok=True)
 
 
-# 兼容旧名字，避免旧脚本直接跑坏
+# 兼容旧脚本
+OUTPUT_DIR = OUT_DIR
+RAW_FRAME_DIR = RAW_DIR
+EVENT_CROP_DIR = CROP_DIR
+FRAME_FOCUS_DIR = DETAIL_DIR
 VIDEO_PATH = VIDEO_REL_PATH
-FRAME_JSON = FRAME_JSON_FILE
-EVENT_JSON = EVENT_JSON_FILE
-DESC_JSON = DESC_JSON_FILE
-MODEL_FILE = str(MODEL_PATH)
+MODEL_PATH = POSE_MODEL
+CONF = DETECT_CONF
+IOU = DETECT_IOU
+MODEL_FILE = str(POSE_MODEL)
 FRAME_STEP = FRAME_SEC
-EVENT_GAP = EVENT_GAP_SEC
-POSE_CFG = POSE_RULE
-QWEN_URL = QWEN_BASE_URL
-make_dirs = make_output_dirs
+make_output_dirs = make_dirs
