@@ -72,5 +72,7 @@ modelscope download --dataset DatatangBeijing/15People-22LandmarksAnnotationData
 python -m uvicorn video_monitor_service:app --host 127.0.0.1 --port 8001
 
 # 前端启动
-python -m http.server 8080
+cd web
+npm install
+npm run dev
 ```

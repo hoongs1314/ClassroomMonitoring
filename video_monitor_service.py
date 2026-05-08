@@ -1,10 +1,11 @@
 import json
+import asyncio
 import threading
 import time
 from pathlib import Path
 
 import cv2
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -60,8 +61,10 @@ REMIND_TEXT = {
 
 def save_json(path: Path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+    tmp_path.replace(path)
 
 
 def media_url(path_str: str) -> str:
@@ -336,7 +339,7 @@ class MonitorEngine:
 
             self.event_map[item["event_id"]] = item
 
-    def get_status(self):
+    def public_status(self):
         with self.lock:
             if self.running and self.started_at:
                 show_seconds = min(self.duration_seconds, max(0.0, time.monotonic() - self.started_at))
@@ -356,11 +359,7 @@ class MonitorEngine:
                         "level": event["level"],
                         "reminder_level": event["reminder_level"],
                         "reminder_text": event["reminder_text"],
-                        "start_time": event["start_time"],
                         "alert_start_time": event["alert_start_time"],
-                        "end_time": event["end_time"],
-                        "duration_seconds": event["duration_seconds"],
-                        "peak_ratio": event["peak_ratio"],
                         "list_title": f"{event['seat_name']}，{action}",
                         "list_image_url": media_url(crop["image"]) if crop else "",
                     }
@@ -426,9 +425,15 @@ def start_monitor():
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@app.get("/api/monitor/status")
-def monitor_status():
-    return engine.get_status()
+@app.websocket("/ws/monitor")
+async def monitor_socket(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            await websocket.send_json(engine.public_status())
+            await asyncio.sleep(0.5)
+    except WebSocketDisconnect:
+        return
 
 
 @app.get("/api/events/{event_id}")

@@ -23,6 +23,7 @@ from config import (
     OUT_DIR,
     POSE_CONF,
     POSE_IOU,
+    POSE_MIN_SEAT_OVERLAP,
     POSE_MODEL,
     POSE_RULE,
     RAW_DIR,
@@ -297,6 +298,7 @@ def pick_pose_result(result, crop_w: int, crop_h: int, seat_box_in_crop: list[fl
     kpt_xy = result.keypoints.xy
     kpt_conf = result.keypoints.conf
 
+    candidates = []
     for i in range(len(boxes)):
         box = boxes[i].tolist()
         cx, cy = box_center(box)
@@ -304,15 +306,29 @@ def pick_pose_result(result, crop_w: int, crop_h: int, seat_box_in_crop: list[fl
         score = float(confs[i].item()) if confs is not None else 0.0
         overlap = box_overlap_ratio(box, seat_box_in_crop) if seat_box_in_crop else 0.0
         rank = dist - score * 50 - overlap * 500
-        if best is None or rank < best_score:
-            best = {
+        candidates.append(
+            {
+                "rank": rank,
                 "box": box,
                 "conf": score,
                 "seat_overlap": overlap,
                 "kpt_xy": kpt_xy[i],
                 "kpt_conf": kpt_conf[i],
             }
-            best_score = rank
+        )
+
+    if seat_box_in_crop:
+        candidates = [item for item in candidates if item["seat_overlap"] >= POSE_MIN_SEAT_OVERLAP]
+        if not candidates:
+            return None
+
+    for item in candidates:
+        if best is None or item["rank"] < best_score:
+            best = item
+            best_score = item["rank"]
+
+    if best is not None:
+        best.pop("rank", None)
     return best
 
 
