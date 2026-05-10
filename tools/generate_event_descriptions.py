@@ -7,7 +7,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from config import DESC_JSON_FILE, EVENT_JSON_FILE, QWEN_BASE_URL, QWEN_MODEL
+from v1.config import DESC_JSON_FILE, EVENT_JSON_FILE, QWEN_BASE_URL, QWEN_MODEL
 from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
 

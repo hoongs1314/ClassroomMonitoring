@@ -29,6 +29,7 @@ from config import (
     RAW_DIR,
     ROOT_DIR,
     SEAT_FRAME_COUNT,
+    SEAT_BOX_PAD,
     SEAT_CROP_PAD,
     SEAT_IMG_SIZE,
     SEAT_JSON_FILE,
@@ -82,6 +83,14 @@ def box_overlap_ratio(box1: list[float], box2: list[float]) -> float:
     if small_area <= 0:
         return 0.0
     return inter / small_area
+
+
+def normalized_center_distance(box: list[float], anchor_box: list[float]) -> float:
+    cx, cy = box_center(box)
+    ax, ay = box_center(anchor_box)
+    aw = max(1.0, anchor_box[2] - anchor_box[0])
+    ah = max(1.0, anchor_box[3] - anchor_box[1])
+    return (((cx - ax) / aw) ** 2 + ((cy - ay) / ah) ** 2) ** 0.5
 
 
 def same_box(box1: list[float], box2: list[float]) -> bool:
@@ -241,8 +250,9 @@ def save_seat_map_image(frame, seats: list[dict], out_file: Path = SEAT_MAP_FILE
         return ""
 
     image = frame.copy()
+    image_h, image_w = image.shape[:2]
     for seat in seats:
-        x1, y1, x2, y2 = [int(round(v)) for v in seat["box"]]
+        x1, y1, x2, y2 = expand_box(seat["box"], image_w, image_h, SEAT_BOX_PAD)
         cv2.rectangle(image, (x1, y1), (x2, y2), (18, 104, 243), 2)
         label = f"S{seat['seat_id']:02d}"
         label_y = max(22, y1 - 8)
@@ -288,8 +298,6 @@ def pick_pose_result(result, crop_w: int, crop_h: int, seat_box_in_crop: list[fl
     if len(result.boxes) == 0:
         return None
 
-    crop_cx = crop_w / 2.0
-    crop_cy = crop_h / 2.0
     best = None
     best_score = None
 
@@ -301,17 +309,18 @@ def pick_pose_result(result, crop_w: int, crop_h: int, seat_box_in_crop: list[fl
     candidates = []
     for i in range(len(boxes)):
         box = boxes[i].tolist()
-        cx, cy = box_center(box)
-        dist = abs(cx - crop_cx) + abs(cy - crop_cy)
         score = float(confs[i].item()) if confs is not None else 0.0
         overlap = box_overlap_ratio(box, seat_box_in_crop) if seat_box_in_crop else 0.0
-        rank = dist - score * 50 - overlap * 500
+        distance = normalized_center_distance(box, seat_box_in_crop) if seat_box_in_crop else 0.0
+        area = max(0.0, box[2] - box[0]) * max(0.0, box[3] - box[1])
+        rank = overlap * 300 + score * 100 - distance * 80 + area / 20000
         candidates.append(
             {
                 "rank": rank,
                 "box": box,
                 "conf": score,
                 "seat_overlap": overlap,
+                "seat_center_distance": distance,
                 "kpt_xy": kpt_xy[i],
                 "kpt_conf": kpt_conf[i],
             }
@@ -323,27 +332,31 @@ def pick_pose_result(result, crop_w: int, crop_h: int, seat_box_in_crop: list[fl
             return None
 
     for item in candidates:
-        if best is None or item["rank"] < best_score:
+        if best is None or item["rank"] > best_score:
             best = item
             best_score = item["rank"]
 
     if best is not None:
+        best["candidate_count"] = len(candidates)
         best.pop("rank", None)
     return best
 
 
-def empty_seat_record(seat: dict, crop_box: list[int]) -> dict:
+def empty_seat_record(seat: dict, crop_box: list[int], seat_box: list[int]) -> dict:
     return {
         "seat_id": seat["seat_id"],
         "seat_name": seat["seat_name"],
         "row": seat["row"],
         "col": seat["col"],
-        "seat_box": seat["box"],
+        "seat_box": seat_box,
+        "original_seat_box": seat["box"],
         "crop_box": crop_box,
         "status": "EMPTY",
         "ratio": None,
         "box_conf": None,
         "seat_overlap": None,
+        "seat_center_distance": None,
+        "candidate_count": 0,
         "person_box": None,
         "valid": False,
         "reason": "no_person",
@@ -354,17 +367,18 @@ def analyze_seat(pose_model, pose_utils: PoseDebugUtils, frame, seat: dict) -> d
     # 座位裁剪
     frame_h, frame_w = frame.shape[:2]
     cut_x1, cut_y1, cut_x2, cut_y2 = expand_box(seat["box"], frame_w, frame_h, SEAT_CROP_PAD)
+    seat_box = expand_box(seat["box"], frame_w, frame_h, SEAT_BOX_PAD)
     crop_box = [cut_x1, cut_y1, cut_x2, cut_y2]
-    seat_item = empty_seat_record(seat, crop_box)
+    seat_item = empty_seat_record(seat, crop_box, seat_box)
     crop = frame[cut_y1:cut_y2, cut_x1:cut_x2]
     if crop.size == 0:
         return seat_item
 
     seat_box_in_crop = [
-        seat["box"][0] - cut_x1,
-        seat["box"][1] - cut_y1,
-        seat["box"][2] - cut_x1,
-        seat["box"][3] - cut_y1,
+        seat_box[0] - cut_x1,
+        seat_box[1] - cut_y1,
+        seat_box[2] - cut_x1,
+        seat_box[3] - cut_y1,
     ]
     result = pose_model.predict(source=crop, imgsz=SEAT_IMG_SIZE, conf=POSE_CONF, iou=POSE_IOU, verbose=False)[0]
     picked = pick_pose_result(result, crop.shape[1], crop.shape[0], seat_box_in_crop)
@@ -384,6 +398,8 @@ def analyze_seat(pose_model, pose_utils: PoseDebugUtils, frame, seat: dict) -> d
             "ratio": round(float(ratio_result.ratio), 4) if ratio_result.ratio is not None else None,
             "box_conf": round(float(picked["conf"]), 4),
             "seat_overlap": round(float(picked["seat_overlap"]), 4),
+            "seat_center_distance": round(float(picked["seat_center_distance"]), 4),
+            "candidate_count": int(picked["candidate_count"]),
             "person_box": [
                 round(box[0] + cut_x1, 2),
                 round(box[1] + cut_y1, 2),

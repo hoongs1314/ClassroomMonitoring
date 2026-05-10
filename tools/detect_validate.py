@@ -5,7 +5,7 @@ from pathlib import Path
 import cv2
 from ultralytics import YOLO
 
-from config import CONF, DETECT_MODEL, IOU, IMG_SIZE, ROOT_DIR
+from v1.config import CONF, DETECT_MODEL, IOU, IMG_SIZE, ROOT_DIR
 
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}

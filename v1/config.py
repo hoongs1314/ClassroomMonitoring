@@ -1,11 +1,11 @@
 import os
 from pathlib import Path
 
-from pose_utils import PoseConfig
+from v1.pose_utils import PoseConfig
 
 ROOT_DIR = Path(__file__).resolve().parent
 
-VIDEO_REL_PATH = Path("inputs/video/test.mp4")
+VIDEO_REL_PATH = Path("../inputs/video/test.mp4")
 VIDEO_FILE = ROOT_DIR / VIDEO_REL_PATH
 
 OUT_DIR = ROOT_DIR / "outputs" / "video_debug"
@@ -26,12 +26,13 @@ POSE_MODEL = MODEL_DIR / "yolo26s-pose.pt"
 
 IMG_SIZE = 3200
 DETECT_CONF = 0.15
-DETECT_IOU = 0.7
+DETECT_IOU = 0.6
 POSE_CONF = 0.15
-POSE_IOU = 0.7
+POSE_IOU = 0.6
 SEAT_IMG_SIZE = 960
-SEAT_CROP_PAD = 0.45
-POSE_MIN_SEAT_OVERLAP = 0.15
+SEAT_CROP_PAD = 0.9
+SEAT_BOX_PAD = 0.5
+POSE_MIN_SEAT_OVERLAP = 0.0
 
 FRAME_SEC = 3
 SEAT_SEC = 1
@@ -46,7 +47,7 @@ POSE_RULE = PoseConfig(
     weak_suspect_ratio=0.03,
 )
 
-QWEN_MODEL = os.getenv("QWEN_VL_MODEL", "qwen3-vl-plus")
+QWEN_MODEL = os.getenv("QWEN_VL_MODEL", "qwen3.6-plus")
 QWEN_BASE_URL = os.getenv(
     "DASHSCOPE_BASE_URL",
     "https://dashscope.aliyuncs.com/compatible-mode/v1",
