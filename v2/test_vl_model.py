@@ -7,8 +7,8 @@ from langchain_core.messages import HumanMessage, SystemMessage
 # 硬编码路径
 SEATS_JSON_PATH = r"E:\Master\MasterProjects\ClassroomMonitoring\outputs\v2\seats_sahi_v3\seats.json"
 SEAT_MAP_PATH = r"E:\Master\MasterProjects\ClassroomMonitoring\outputs\v2\seats_sahi_v3\seat_map.jpg"
-SYSTEM_PROMPT_PATH = r"E:\Master\MasterProjects\ClassroomMonitoring\vl_model_system_prompt.md"
-USER_PROMPT_PATH = r"E:\Master\MasterProjects\ClassroomMonitoring\vl_model_user_prompt.md"
+SYSTEM_PROMPT_PATH = r"/vlm_system_prompt.md"
+USER_PROMPT_PATH = r"/vlm_user_prompt.md"
 
 # 读取数据
 with open(SEATS_JSON_PATH, "r", encoding="utf-8") as f:

@@ -14,8 +14,8 @@ ROOT_PATH = Path(__file__).resolve().parents[1]
 VIDEO_PATH = str(ROOT_PATH / "inputs/video/test.mp4")
 MODEL_PATH = str(ROOT_PATH / "models/detect.pt")
 OUTPUT_ROOT = str(ROOT_PATH / "outputs/v2/monitor_vl")
-SYSTEM_PROMPT_PATH = str(ROOT_PATH / "vl_model_system_prompt.md")
-USER_PROMPT_PATH = str(ROOT_PATH / "vl_model_user_prompt.md")
+SYSTEM_PROMPT_PATH = str(ROOT_PATH / "vlm_system_prompt.md")
+USER_PROMPT_PATH = str(ROOT_PATH / "vlm_user_prompt.md")
 
 INTERVAL = 10.0  # 隔10秒跑一次
 CONF_THRESHOLD = 0.25

@@ -2,14 +2,12 @@ import numpy as np
 from ultralytics import YOLO
 
 class PoseEngine:
-    """姿态预检引擎：支持批量推理以提升效率"""
     def __init__(self, model_path, device="cpu"):
         self.model = YOLO(model_path)
         self.head_ids = [0, 1, 2, 3, 4]
         self.shoulder_ids = [5, 6]
 
     def detect_poses_batch(self, frame, seats, imgsz=640):
-        """对所有座位的坐标进行批量裁剪和姿态推理"""
         if not seats:
             return []
 
@@ -20,13 +18,11 @@ class PoseEngine:
         for s in seats:
             x1, y1, x2, y2 = [int(v) for v in s["box"]]
             crop = frame[max(0, y1-pad):min(h, y2+pad), max(0, x1-pad):min(w, x2+pad)]
-            # 如果裁剪失效（面积为0），放一个全黑图占位，保持索引对应
             if crop.size == 0:
                 crops.append(np.zeros((100, 100, 3), dtype=np.uint8))
             else:
                 crops.append(crop)
 
-        # 批量预测 (这是加速的关键)
         results_list = self.model.predict(source=crops, imgsz=imgsz, conf=0.20, verbose=False)
         
         final_results = []
@@ -35,7 +31,6 @@ class PoseEngine:
                 final_results.append(("UNCERTAIN", 0.0))
                 continue
 
-            # 选裁剪图中最中心的人
             ch, cw = crops[i].shape[:2]
             best_idx = 0
             if len(results.boxes) > 1:
@@ -47,7 +42,6 @@ class PoseEngine:
             kpts = results.keypoints.xy[best_idx].cpu().numpy()
             confs = results.keypoints.conf[best_idx].cpu().numpy()
 
-            # 评估置信度
             visible_heads = [j for j in self.head_ids if confs[j] > 0.45]
             visible_shoulders = [j for j in self.shoulder_ids if confs[j] > 0.45]
 
@@ -55,14 +49,11 @@ class PoseEngine:
                 final_results.append(("SUSPECTED", float(np.mean(confs))))
                 continue
 
-            # 计算头肩比例
             hy = np.mean([kpts[j][1] for j in visible_heads])
             sy = np.mean([kpts[j][1] for j in visible_shoulders])
-            # 这里的 bh 是裁剪图内的高度，通常更准确
             bh = max(1.0, results.boxes.xyxy[best_idx][3].item() - results.boxes.xyxy[best_idx][1].item())
             ratio = (sy - hy) / bh
 
-            # 只要比例在正常范围内且置信度高，即为 NORMAL
             if 0.05 < ratio < 0.25:
                 final_results.append(("NORMAL", float(np.mean(confs))))
             else:
