@@ -1,6 +1,7 @@
 /dataset/
 /outputs/
 /yolo26x-pose_openvino_model/
+__pycache__/
 *.pt
 .idea
 .vscode
