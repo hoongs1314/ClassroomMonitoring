@@ -12,38 +12,14 @@ from langchain_openai import ChatOpenAI
 from sahi import AutoDetectionModel
 from sahi.predict import get_sliced_prediction
 
-from pose_engine import PoseEngine
 from video_stream_util import MockMonitorStream
 
 # 当前目录绝对路径
 ROOT_PATH = Path(__file__).resolve().parent
 EVENT_CROP_DIR = ROOT_PATH / "outputs" / "event_crops"
-APP_LOG_PATH = ROOT_PATH / "outputs" / "app.log"
-# 创建输出目录（创建父级、存在不报错）
 EVENT_CROP_DIR.mkdir(parents = True, exist_ok = True)
-APP_LOG_PATH.parent.mkdir(parents = True, exist_ok = True)
 
 logger = logging.getLogger("monitor")
-logger.setLevel(logging.INFO)
-logger.propagate = False
-if not logger.handlers:
-	_console_handler = logging.StreamHandler()
-	_console_handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)-7s | %(message)s", "%H:%M:%S"))
-	logger.addHandler(_console_handler)
-
-
-def append_app_log(message):
-	"""临时排查日志，直接写入 outputs/app.log。"""
-	try:
-		with APP_LOG_PATH.open("a", encoding = "utf-8") as file:
-			file.write(f"{time.strftime('%H:%M:%S')} | {message}\n")
-	except Exception as exc:
-		logger.warning("[AppLog] 写入失败: %s", exc)
-
-
-def seat_log_label(seat):
-	"""调试日志中的座位标识。"""
-	return f"{seat.get('seat_code')}#{seat.get('seat_id')}"
 
 CLASS_VIDEOS = {
 	"1班": ROOT_PATH / "inputs" / "test.mp4",
@@ -54,19 +30,11 @@ CLASS_VIDEOS = {
 
 DEFAULT_CLASS = "1班"
 
-# 疑似次数送检阈值
-SUSPECT_CONFIRM_COUNT = 3
 # 同一座位 VLM 送检间隔
 VLM_INVOKE_SECONDS = 15
-# 恢复正常次数阈值
-RECOVER_CONFIRM_COUNT = 2
-# 锁定最短时长
-MIN_LOCK_TIMES = 15
 
-# 什么时候开始送检（得等一会座位稳定）
-VLM_START_TIME = 5
 # 异常状态
-ABNORMAL_STATUSES = { "DESK_LYING" }
+ABNORMAL_STATUSES = { "DESK_LYING", "HEAD_DOWN" }
 
 # socket连接集合
 websocket_clients = set()
@@ -76,12 +44,6 @@ vlm_task_queue = queue.Queue(maxsize = 20)
 review_time_map = { }
 # 当前队列中seat_id集合
 vlm_pending = set()
-# 疑似次数记录 seat_id: 次数
-suspect_count_map = { }
-# 正常次数记录 seat_id: 次数
-recover_count_map = { }
-# 锁定时间记录 seat_id: 锁定时间
-locked_time_map = { }
 
 
 def get_video_size(video_path):
@@ -114,7 +76,7 @@ state = {
 
 
 def detection_analysis_loop():
-	"""持续执行人体检测、姿态初筛和 VLM 复核入队"""
+	"""持续执行检测和 VLM 分析"""
 	# sahi加载detect模型
 	detector = AutoDetectionModel.from_pretrained(
 		model_type = "ultralytics",
@@ -124,10 +86,6 @@ def detection_analysis_loop():
 	)
 	logger.info("[Detect] 初始化完成")
 
-	pose_model = PoseEngine(str(ROOT_PATH / "models" / "gmn26n-pose-k9.pt"))
-	logger.info("[Pose] 初始化完成")
-
-	cycle_index = 0
 	seat_id_counter = 100
 	while True:
 		if not state["is_running"]:
@@ -155,7 +113,6 @@ def detection_analysis_loop():
 		detections = [det for det in prediction.object_prediction_list if det.category.id == 0]
 		seat_id_counter, _matched_n, _new_n = update_detected_seats(detections, seat_id_counter)
 
-		apply_pose_status(frame, pose_model, cycle_index)
 		state["time"] = time.strftime("%H:%M:%S")
 		# 刷新前端统计卡片数据
 		state["counts"] = {
@@ -164,7 +121,8 @@ def detection_analysis_loop():
 			"normal": sum(1 for event in state["events"] if event["status"] == "HEAD_DOWN"),
 		}
 
-		cycle_index += 1
+		# 所有检测到的座位都参与 VLM 分析（受冷却时间限制）
+		enqueue_task(frame, state["seats"])
 		time.sleep(0.1)
 
 
@@ -174,119 +132,6 @@ def frame_loader_worker():
 	while True:
 		state["frame"] = video_stream.get_latest_frame()
 		time.sleep(0.04)
-
-
-def apply_pose_status(frame, pose_model, cycle_index):
-	"""按 Pose 结果更新座位状态并触发必要的 VLM 复核"""
-	# 3次detect 1次pose
-	if cycle_index % 3 != 0 or not state["seats"]:
-		return
-
-	suspected = []
-	pose_seats = []
-	for seat in state["seats"]:
-		seat_id = seat["seat_id"]
-		box = seat["box"]
-		box_w = max(1, box[2] - box[0])
-		box_h = max(1, box[3] - box[1])
-		if box_w < box_h * 0.5:
-			if seat.get("locked_abnormal"):
-				lock_ts = locked_time_map.get(seat_id, 0)
-				locked_left = MIN_LOCK_TIMES - (time.time() - lock_ts)
-				if locked_left > 0:
-					append_app_log(
-						f"[PoseReview] keep_locked_narrow_box seat={seat_log_label(seat)} "
-						f"box_w={box_w:.1f} box_h={box_h:.1f} locked_left={locked_left:.1f}s cycle={cycle_index}"
-					)
-					continue
-			set_seat_status(seat, "NORMAL", "POSE")
-			suspect_count_map[seat_id] = 0
-			recover_count_map[seat_id] = 0
-			append_app_log(
-				f"[PoseReview] skip_narrow_box seat={seat_log_label(seat)} status=NORMAL "
-				f"box_w={box_w:.1f} box_h={box_h:.1f} cycle={cycle_index}"
-			)
-			continue
-		pose_seats.append(seat)
-
-	if not pose_seats:
-		return
-
-	poses = pose_model.detect_poses_batch(frame, pose_seats)
-	for index, (pose_status, _pose_conf, ratio, keypoint_conf) in enumerate(poses[:len(pose_seats)]):
-		seat = pose_seats[index]
-		seat_id = seat["seat_id"]
-
-		if pose_status != "NORMAL":
-			review_status = pose_status
-			if pose_status == "SUSPECTED" and 0 < ratio < 0.03 and keypoint_conf > 0.45:
-				review_status = "HEAD_DOWN"
-				append_app_log(
-					f"[PoseReview] direct_head_down seat={seat_log_label(seat)} raw_pose={pose_status} "
-					f"ratio={ratio:.4f} kpt={keypoint_conf:.3f} cycle={cycle_index}"
-				)
-				logger.info("[Pose] 高置信异常: %s HEAD_DOWN", seat["seat_code"])
-			if not seat.get("locked_abnormal"):
-				set_seat_status(seat, review_status, "POSE")
-			# 非 NORMAL 状态共享累计次数，只有 NORMAL 会清零
-			suspect_count = suspect_count_map.get(seat_id, 0) + 1
-			suspect_count_map[seat_id] = suspect_count
-			recover_count_map[seat_id] = 0
-			cooldown_left = max(0.0, VLM_INVOKE_SECONDS - (time.time() - review_time_map.get(seat_id, 0)))
-			append_app_log(
-				f"[PoseReview] accumulate seat={seat_log_label(seat)} pose={review_status} raw_pose={pose_status} "
-				f"count={suspect_count}/{SUSPECT_CONFIRM_COUNT} locked={seat.get('locked_abnormal')} "
-				f"pending={seat_id in vlm_pending} cooldown_left={cooldown_left:.1f}s "
-				f"ratio={ratio:.4f} kpt={keypoint_conf:.3f} cycle={cycle_index}"
-			)
-			# 次数超过阈值，锁定异常
-			if suspect_count >= SUSPECT_CONFIRM_COUNT:
-				suspected.append(seat)
-			continue
-
-		# NORMAL 清空非正常累计
-		prev_count = suspect_count_map.get(seat_id, 0)
-		suspect_count_map[seat_id] = 0
-		if prev_count:
-			append_app_log(
-				f"[PoseReview] reset seat={seat_log_label(seat)} pose={pose_status} "
-				f"prev_count={prev_count} ratio={ratio:.4f} kpt={keypoint_conf:.3f} cycle={cycle_index}"
-			)
-		if not seat.get("locked_abnormal"):
-			set_seat_status(seat, pose_status, "POSE")
-			continue
-
-		# 锁定最短时间没到不能解锁
-		lock_ts = locked_time_map.get(seat["seat_id"], 0)
-		if time.time() - lock_ts < MIN_LOCK_TIMES:
-			append_app_log(
-				f"[PoseReview] keep_locked seat={seat_log_label(seat)} pose={pose_status} "
-				f"locked_left={MIN_LOCK_TIMES - (time.time() - lock_ts):.1f}s cycle={cycle_index}"
-			)
-			continue
-		# 恢复分数累计
-		recover_count_map[seat["seat_id"]] = recover_count_map.get(seat["seat_id"], 0) + 1
-		# 恢复分数累计足够恢复正常状态
-		if recover_count_map[seat["seat_id"]] >= RECOVER_CONFIRM_COUNT:
-			set_seat_status(seat, pose_status, "POSE")
-			append_app_log(
-				f"[PoseReview] unlock seat={seat_log_label(seat)} pose={pose_status} "
-				f"recover_count={recover_count_map[seat_id]} cycle={cycle_index}"
-			)
-			logger.info("[Pose] 解除锁定: %s", seat["seat_code"])
-
-	# 座位可疑并且超过vlm间隔，再次送检
-	if suspected and cycle_index >= VLM_START_TIME:
-		append_app_log(
-			f"[PoseReview] enqueue_request cycle={cycle_index} "
-			f"seats={','.join(seat_log_label(seat) for seat in suspected)}"
-		)
-		enqueue_task(frame, suspected)
-	elif suspected:
-		append_app_log(
-			f"[PoseReview] skip_cold_start cycle={cycle_index} start={VLM_START_TIME} "
-			f"seats={','.join(seat_log_label(seat) for seat in suspected)}"
-		)
 
 
 def update_detected_seats(detections, seat_id_counter):
@@ -352,11 +197,8 @@ def find_matching_seat(box_xyxy, used_ids):
 
 def reset_detection_state():
 	"""重置检测数据"""
-	suspect_count_map.clear()
-	recover_count_map.clear()
 	review_time_map.clear()
 	vlm_pending.clear()
-	locked_time_map.clear()
 	# 清空队列
 	while True:
 		try:
@@ -373,7 +215,6 @@ def vlm_worker(worker_id):
 	api_key = os.environ.get("ALIYUN_API_KEY")
 	if not api_key:
 		logger.warning("[VLM-w%d] ALIYUN_API_KEY 未设置", worker_id)
-		append_app_log(f"[VLMWorker] api_key_missing worker={worker_id}")
 
 	vlm = ChatOpenAI(
 		model = "qwen-vl-max",
@@ -386,24 +227,14 @@ def vlm_worker(worker_id):
 	while True:
 		# 等任务,阻塞
 		job = vlm_task_queue.get()
-		append_app_log(
-			f"[VLMWorker] dequeue worker={worker_id} running={state['is_running']} "
-			f"seats={','.join(seat_log_label(seat) for seat in job['seats'])}"
-		)
-		# 停服了就不处理，释放 pending
 		if not state["is_running"]:
-			append_app_log(
-				f"[VLMWorker] skip_not_running worker={worker_id} "
-				f"seats={','.join(seat_log_label(seat) for seat in job['seats'])}"
-			)
 			set_vlm_pending(job["seats"], False)
 			continue
 
 		try:
-			result = invoke_review(vlm, sys_content, job["frame"], job["seats"][0], worker_id)
-			handle_review_result(result, job["frame"], worker_id)
+			result = invoke_review(vlm, sys_content, job["frame"], job["seats"][0])
+			handle_review_result(result, job["frame"])
 		except Exception as exc:
-			append_app_log(f"[VLMWorker] exception worker={worker_id} error={exc}")
 			logger.error("[VLM-w%d] 复核异常: %s", worker_id, exc, exc_info = True)
 		finally:
 			set_vlm_pending(job["seats"], False)
@@ -415,84 +246,59 @@ def enqueue_task(frame, seats):
 	targets = []
 	for seat in seats:
 		seat_id = seat["seat_id"]
-		# 已经异常、已经处于待处理的不处理
-		if seat.get("locked_abnormal"):
-			append_app_log(f"[VLMQueue] skip_locked seat={seat_log_label(seat)} status={seat.get('status')}")
-			continue
 		if seat_id in vlm_pending:
-			append_app_log(f"[VLMQueue] skip_pending seat={seat_log_label(seat)} status={seat.get('status')}")
+			continue
+		box = seat["box"]
+		box_w = max(1, box[2] - box[0])
+		box_h = max(1, box[3] - box[1])
+		# 宽高比1:2的不送检
+		if min(box_w, box_h) / max(box_w, box_h) <= 1.0 / 2.0:
 			continue
 		# 没到最小间隔的不处理
 		cooldown_left = VLM_INVOKE_SECONDS - (now - review_time_map.get(seat_id, 0))
 		if cooldown_left > 0:
-			append_app_log(
-				f"[VLMQueue] skip_cooldown seat={seat_log_label(seat)} status={seat.get('status')} "
-				f"left={cooldown_left:.1f}s"
-			)
 			continue
-		append_app_log(f"[VLMQueue] candidate seat={seat_log_label(seat)} status={seat.get('status')}")
 		targets.append(dict(seat))
 
-	if seats and not targets:
-		append_app_log(
-			f"[VLMQueue] request_empty seats={','.join(seat_log_label(seat) for seat in seats)}"
-		)
-
 	frozen = frame.copy()
-	# 逐座入队
 	for seat in targets:
 		set_vlm_pending([seat], True)
 		try:
 			vlm_task_queue.put({ "frame": frozen, "seats": [seat] }, block = True, timeout = 3)
 			review_time_map[seat["seat_id"]] = now
-			append_app_log(
-				f"[VLMQueue] enqueued seat={seat_log_label(seat)} queue_size={vlm_task_queue.qsize()}"
-			)
 			logger.info("[VLM] 入队 %s", seat["seat_code"])
 		except queue.Full:
-			# 满了丢一部分，防止一直堆积后面帧都处理不了
 			set_vlm_pending([seat], False)
-			append_app_log(f"[VLMQueue] queue_full seat={seat_log_label(seat)}")
 			logger.warning("[VLM] 队列满，丢弃: %s", seat["seat_code"])
 
 
-def handle_review_result(result, frame, worker_id):
+def handle_review_result(result, frame):
 	"""处理 VLM 返回结果"""
 	if result is None:
-		append_app_log(f"[VLMResult] empty worker={worker_id}")
 		return False
 	response, seat, ts_ms = result
 	if not state["is_running"]:
-		append_app_log(f"[VLMResult] skip_not_running worker={worker_id} seat={seat_log_label(seat)}")
 		return True
 
 	try:
 		answer = parse_model_json(response)
-		append_app_log(
-			f"[VLMResult] parsed worker={worker_id} seat={seat_log_label(seat)} "
-			f"status={answer.get('status')} label={answer.get('label')}"
-		)
 		apply_vlm_result(answer, frame, seat, ts_ms)
 	except Exception as exc:
-		append_app_log(f"[VLMResult] exception worker={worker_id} seat={seat_log_label(seat)} error={exc}")
-		logger.error("[VLM-w%d] 结果处理异常: %s %s", worker_id, seat["seat_code"], exc, exc_info = True)
+		logger.error("[VLM] 结果处理异常: %s %s", seat["seat_code"], exc, exc_info = True)
 	return True
 
 
-def invoke_review(vlm, sys_content, frame, seat, worker_id):
+def invoke_review(vlm, sys_content, frame, seat):
 	"""调用 VLM 分析裁剪图"""
 	image = build_review_image(frame, seat)
 	if image is None:
-		append_app_log(f"[VLMInvoke] image_empty worker={worker_id} seat={seat_log_label(seat)}")
 		return None
 
 	img_b64 = encode_review_image(image)
 	if not img_b64:
-		append_app_log(f"[VLMInvoke] encode_failed worker={worker_id} seat={seat_log_label(seat)}")
-		logger.error("[VLM-w%d] 图片转换失败: %s", worker_id, seat["seat_code"])
+		logger.error("[VLM] 图片转换失败: %s", seat["seat_code"])
 		return None
 
-	append_app_log(f"[VLMInvoke] start worker={worker_id} seat={seat_log_label(seat)}")
 	start = time.time()
 	response = vlm.invoke(
 		[
@@ -505,8 +311,7 @@ def invoke_review(vlm, sys_content, frame, seat, worker_id):
 		]
 	).content
 	end = time.time()
-	append_app_log(f"[VLMInvoke] done worker={worker_id} seat={seat_log_label(seat)} seconds={end - start:.3f}")
-	logger.info("[VLM] w%d 模型分析耗时 %.4f", worker_id, end - start)
+	logger.info("[VLM] 模型分析耗时 %.4f", end - start)
 	return response, seat, time.time_ns()
 
 
@@ -518,25 +323,14 @@ def apply_vlm_result(answer, frame, seat, ts_ms):
 			current = s
 			break
 	target = current or seat
-	old_status = target.get("status")
 	if current:
 		set_seat_status(current, answer["status"], "VLM")
 	else:
 		target["analysis_source"] = "VLM"
-	append_app_log(
-		f"[VLMApply] seat={seat_log_label(target)} current_found={current is not None} "
-		f"old={old_status} new={answer.get('status')}"
-	)
 
 	if answer["status"] in ABNORMAL_STATUSES:
 		append_event(answer, target, frame, ts_ms)
-		append_app_log(f"[VLMApply] append_event seat={seat_log_label(target)} status={answer.get('status')}")
 		logger.info("[VLM] 确认异常行为: %s %s", target["seat_code"], answer["status"])
-	else:
-		append_app_log(
-			f"[VLMApply] no_event seat={seat_log_label(target)} status={answer.get('status')} "
-			f"abnormal_set={','.join(sorted(ABNORMAL_STATUSES))}"
-		)
 
 
 def append_event(answer, target, frame, ts_ms):
@@ -572,16 +366,12 @@ def switch_class(class_name):
 	logger.info("已切换班级到: %s", class_name)
 
 
-def set_seat_status(seat, status, source=None):
-	"""更新座位状态并更新异常锁定记录"""
+def set_seat_status(seat, status, source = None):
+	"""更新座位状态"""
 	seat["status"] = status
 	if source:
 		seat["analysis_source"] = source
 	seat["locked_abnormal"] = status in ABNORMAL_STATUSES
-	if seat["locked_abnormal"]:
-		locked_time_map[seat["seat_id"]] = time.time()
-	else:
-		locked_time_map.pop(seat["seat_id"], None)
 
 
 def set_vlm_pending(seats, enabled):

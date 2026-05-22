@@ -43,7 +43,6 @@ function getSeatName(e) {
 
 function getSourceLabel(e) {
   const source = e.analysis_source || e.source || '-'
-  if (source === 'POSE') return 'POSE'
   if (source === 'VLM') return 'VLM'
   return source
 }
