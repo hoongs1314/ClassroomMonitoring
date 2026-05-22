@@ -5,7 +5,7 @@ from ultralytics import YOLO
 logger = logging.getLogger("monitor.pose")
 
 class PoseEngine:
-    def __init__(self, model_path, device="cpu"):
+    def __init__(self, model_path):
         self.model = YOLO(model_path)
         self.head_ids = [0, 1, 2, 3, 4]
         self.shoulder_ids = [5, 6]
