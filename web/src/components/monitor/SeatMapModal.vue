@@ -5,6 +5,7 @@ import { useApi } from '@/composables/useApi'
 const props = defineProps({
   open: Boolean,
   seatMapUrl: String,
+  currentClass: { type: String, default: '' },
   seats: { type: Array, default: () => [] },
   imgW: { type: Number, default: 1920 },
   imgH: { type: Number, default: 1080 },
@@ -23,7 +24,10 @@ const statusMap = {
 }
 const getS = (s) => statusMap[s] || statusMap.NORMAL
 
-const frameUrl = computed(() => `${mediaUrl('/api/latest_frame')}?t=${Date.now()}`)
+const frameUrl = computed(() => {
+  const token = [props.currentClass, props.open, props.imgW, props.imgH, props.seats.length].join('-')
+  return mediaUrl('/api/latest_frame') + '?class=' + encodeURIComponent(props.currentClass) + '&v=' + encodeURIComponent(token) + '&t=' + Date.now()
+})
 
 function boxStyle(box) {
   if (!box || !props.imgW) return { display: 'none' }
@@ -43,14 +47,14 @@ function boxStyle(box) {
     width="1100px"
     centered
     destroyOnClose
-    title="座位识别图"
+    title="整体课堂识别"
     @cancel="emit('update:open', false)"
   >
     <div v-if="seatMapUrl" class="seat-map-wrap">
-      <img :src="mediaUrl(seatMapUrl)" alt="座位图" class="seat-map-img" />
+      <img :src="mediaUrl(seatMapUrl)" alt="当前课堂识别" class="seat-map-img" />
     </div>
     <div v-else-if="seats.length" class="seat-grid-wrap">
-      <p class="seat-grid-hint">实时座位检测图</p>
+      <p class="seat-grid-hint">整体课堂检测图</p>
       <div class="seat-viewport" :style="{ aspectRatio: `${imgW}/${imgH}` }">
         <img
           :src="frameUrl"

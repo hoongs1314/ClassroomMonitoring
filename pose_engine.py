@@ -28,7 +28,7 @@ class PoseEngine:
             else:
                 crops.append(crop)
 
-        results_list = self.model.predict(source=crops, imgsz=imgsz, conf=0.30, verbose=False)
+        results_list = self.model.predict(source=crops, imgsz=imgsz, conf=0.30, iou=0.2, verbose=False)
 
         final_results = []
         for i, results in enumerate(results_list):

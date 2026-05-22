@@ -15,7 +15,6 @@ import { useApi } from '@/composables/useApi'
 import VideoPlayer from '@/components/monitor/VideoPlayer.vue'
 import StatsCard from '@/components/monitor/StatsCard.vue'
 import EventList from '@/components/monitor/EventList.vue'
-import EventDetailModal from '@/components/monitor/EventDetailModal.vue'
 import SeatMapModal from '@/components/monitor/SeatMapModal.vue'
 
 const { status, isConnected } = useWebSocket()
@@ -23,8 +22,6 @@ const { requestJson } = useApi()
 
 const starting = ref(false)
 const monitorStarted = ref(false)
-const showDetail = ref(false)
-const selectedEvent = ref(null)
 const showSeatMap = ref(false)
 
 watch(() => status.value?.is_running, (val) => {
@@ -116,12 +113,6 @@ async function stopMonitor() {
   }
   monitorStarted.value = false
   message.success('监控已停止')
-}
-
-function openEventDetail(id) {
-  const found = events.value.find((e) => (e.event_id || e.id) === id)
-  selectedEvent.value = found || null
-  showDetail.value = true
 }
 
 function openSeatMap() {
@@ -220,13 +211,11 @@ clickable
               异常行为通知
             </h2>
           </div>
-          <EventList :events="events" @select="openEventDetail" />
+          <EventList :events="events" />
         </section>
       </aside>
     </main>
-
-    <EventDetailModal v-model:open="showDetail" :event-data="selectedEvent" />
-    <SeatMapModal v-model:open="showSeatMap" :seat-map-url="seatMapUrl" :seats="seats" :img-w="imgSize.w" :img-h="imgSize.h" />
+    <SeatMapModal v-model:open="showSeatMap" :seat-map-url="seatMapUrl" :current-class="status?.current_class || ''" :seats="seats" :img-w="imgSize.w" :img-h="imgSize.h" />
   </div>
 </template>
 

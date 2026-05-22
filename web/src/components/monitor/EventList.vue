@@ -79,7 +79,7 @@ function getSeatName(e) {
         <div class="event-body">
           <div class="event-seat">座位：{{ getSeatName(item) }}</div>
           <div class="event-action">
-            行为：<strong>{{ getLabel(item) }}</strong>
+            智能分析：{{ item.reason}}
           </div>
         </div>
 
@@ -127,7 +127,6 @@ function getSeatName(e) {
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
   background: var(--bg-elevated);
-  cursor: pointer;
   transition: transform var(--duration-fast) var(--ease-out),
     box-shadow var(--duration-fast) var(--ease-out),
     border-color var(--duration-fast) var(--ease-out);
