@@ -39,8 +39,6 @@ watch([() => props.open, () => props.eventData, () => props.eventId], async ([is
   }
 }, { immediate: true })
 
-const remindColor = (level) => (level === 'FOCUS' ? 'red' : 'blue')
-
 const levelColor = (level) => {
   if (level === 'STRONG') return 'red'
   if (level === 'WEAK') return 'gold'
@@ -49,9 +47,20 @@ const levelColor = (level) => {
 }
 
 const statusText = (v) => {
-  const map = { STRONG: '明显异常', WEAK: '轻度异常', NORMAL: '正常', EMPTY: '空位', INVALID: '关键点不足' }
+  const map = {
+    DESK_LYING: '疑似趴桌',
+    HEAD_DOWN: '疑似低头',
+    NORMAL: '正常',
+    UNCERTAIN: '无法确定',
+    EMPTY: '空位',
+    STRONG: '明显异常',
+    WEAK: '轻度异常',
+    INVALID: '关键点不足',
+  }
   return map[v] || v || '-'
 }
+
+const statusColor = (v) => (v === 'DESK_LYING' ? 'red' : 'blue')
 
 const formatRatio = (v) => (v != null ? Number(v).toFixed(4) : '-')
 </script>
@@ -78,18 +87,18 @@ const formatRatio = (v) => (v != null ? Number(v).toFixed(4) : '-')
       <div class="detail-shell">
         <div class="detail-top">
           <div>
-            <h3 class="detail-seat">{{ fetchedData.seat_name }}</h3>
-            <p class="detail-summary">{{ fetchedData.summary_text }}</p>
+            <h3 class="detail-seat">{{ fetchedData.seat_name || fetchedData.seat || '-' }}</h3>
+            <p class="detail-summary">{{ fetchedData.summary_text || fetchedData.reason || '-' }}</p>
           </div>
-          <a-tag :color="remindColor(fetchedData.reminder_level)">
-            {{ fetchedData.reminder_text }}
+          <a-tag :color="statusColor(fetchedData.status)">
+            {{ fetchedData.label || statusText(fetchedData.status) }}
           </a-tag>
         </div>
 
         <div class="detail-cards">
           <div class="info-card">
             <div class="info-label">座位号</div>
-            <div class="info-value">{{ fetchedData.seat_name }}</div>
+            <div class="info-value">{{ fetchedData.seat_name || fetchedData.seat || '-' }}</div>
           </div>
           <div class="info-card">
             <div class="info-label">开始时间</div>

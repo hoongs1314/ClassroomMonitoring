@@ -33,19 +33,26 @@ watch(() => status.value?.is_running, (val) => {
 
 const counts = computed(() => status.value?.counts || { total: 0, focus: 0, normal: 0 })
 
+function statusLabel(statusCode) {
+  const map = {
+    HEAD_DOWN: '疑似低头',
+    DESK_LYING: '疑似趴桌',
+    UNCERTAIN: '无法确定',
+    EMPTY: '未看到可分析学生',
+    NORMAL: '正常或未见明显异常',
+  }
+  return map[statusCode] || '异常行为'
+}
+
 const events = computed(() => {
   const raw = status.value?.events || []
   return raw.map((e) => {
-    const rawRisk = e.reminder_level || e.risk || ''
-    const level = (rawRisk === '高' || rawRisk === 'FOCUS') ? 'FOCUS' : 'NORMAL'
     return {
       ...e,
       event_id: e.event_id || e.id,
       list_image_url: e.list_image_url || e.url,
       seat_name: e.seat_name || e.seat || '-',
-      list_title: e.list_title || e.label,
-      reminder_level: level,
-      reminder_text: e.reminder_text || e.label || '提醒',
+      list_title: e.list_title || e.label || statusLabel(e.status),
       alert_start_time: e.alert_start_time || e.time,
     }
   })

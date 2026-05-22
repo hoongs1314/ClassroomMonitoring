@@ -29,12 +29,12 @@ const statusMap = {
   HEAD_DOWN: { c: '#F59E0B', t: '低头' },
   DESK_LYING: { c: '#EF4444', t: '趴睡' },
   UNCERTAIN: { c: '#64748B', t: '模糊' },
-  SUSPECTED: { c: '#F59E0B', t: '疑似' },
+  SUSPECTED: { c: '#0b90f5', t: '疑似' },
 }
 const getS = (s) => statusMap[s] || statusMap.NORMAL
 
 const abnormalSeats = computed(() =>
-  props.seats.filter((s) => !['NORMAL'].includes(s.status))
+  props.seats.filter((s) => !['NORMAL', 'SUSPECTED'].includes(s.status))
 )
 
 function getBoxStyle(box) {

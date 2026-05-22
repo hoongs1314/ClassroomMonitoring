@@ -13,18 +13,18 @@ const emit = defineEmits(['select'])
 
 const { mediaUrl } = useApi()
 
-const filterLevel = ref('')
+const filterStatus = ref('')
 
 const filteredEvents = computed(() => {
-  if (!filterLevel.value) return props.events
-  return props.events.filter((e) => e.reminder_level === filterLevel.value)
+  if (!filterStatus.value) return props.events
+  return props.events.filter((e) => e.status === filterStatus.value)
 })
 
 const totalCount = computed(() => props.events.length)
-const focusCount = computed(() => props.events.filter((e) => e.reminder_level === 'FOCUS').length)
-const normalCount = computed(() => props.events.filter((e) => e.reminder_level === 'NORMAL').length)
+const deskLyingCount = computed(() => props.events.filter((e) => e.status === 'DESK_LYING').length)
+const headDownCount = computed(() => props.events.filter((e) => e.status === 'HEAD_DOWN').length)
 
-const remindColor = (level) => (level === 'FOCUS' ? 'red' : 'blue')
+const statusColor = (status) => (status === 'DESK_LYING' ? 'red' : 'blue')
 
 function getEventId(e) {
   return e.event_id || e.id
@@ -32,8 +32,8 @@ function getEventId(e) {
 
 function getLabel(e) {
   if (e.label) return e.label
-  if (e.level === 'STRONG') return '趴桌'
-  if (e.level === 'WEAK') return '低头'
+  if (e.status === 'DESK_LYING') return '疑似趴桌'
+  if (e.status === 'HEAD_DOWN') return '疑似低头'
   return e.list_title || '异常行为'
 }
 
@@ -45,10 +45,10 @@ function getSeatName(e) {
 <template>
   <div class="event-list">
     <div class="filter-bar">
-      <a-radio-group v-model:value="filterLevel" size="small" button-style="solid">
+      <a-radio-group v-model:value="filterStatus" size="small" button-style="solid">
         <a-radio-button value="">全部 ({{ totalCount }})</a-radio-button>
-        <a-radio-button value="FOCUS">重点 ({{ focusCount }})</a-radio-button>
-        <a-radio-button value="NORMAL">普通 ({{ normalCount }})</a-radio-button>
+        <a-radio-button value="DESK_LYING">趴桌 ({{ deskLyingCount }})</a-radio-button>
+        <a-radio-button value="HEAD_DOWN">低头 ({{ headDownCount }})</a-radio-button>
       </a-radio-group>
     </div>
 
@@ -83,8 +83,8 @@ function getSeatName(e) {
           </div>
         </div>
 
-        <a-tag :color="remindColor(item.reminder_level || item.risk)">
-          {{ item.reminder_text || item.risk || '提醒' }}
+        <a-tag :color="statusColor(item.status)">
+          {{ getLabel(item) }}
         </a-tag>
       </article>
     </div>

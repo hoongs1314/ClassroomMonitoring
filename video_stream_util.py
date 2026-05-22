@@ -9,7 +9,7 @@ ROOT_PATH = Path(__file__).resolve().parent
 
 class MockMonitorStream:
     def __init__(self, video_path=None):
-        self.video_path = str(video_path) if video_path else str(ROOT_PATH / "inputs/video/test.mp4")
+        self.video_path = str(video_path) if video_path else str(ROOT_PATH / "inputs/test.mp4")
         self._lock = threading.Lock()
         self.cap = cv2.VideoCapture(self.video_path)
         if not self.cap.isOpened():
@@ -25,7 +25,6 @@ class MockMonitorStream:
             if not ret:
                 self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 ret, frame = self.cap.read()
-                logger.debug("[视频] 循环回到开头")
             return frame
 
     def switch_video(self, video_path):
