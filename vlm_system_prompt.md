@@ -73,10 +73,7 @@ JSON 对象必须严格包含以下字段：
   "status": "",
   "label": "",
   "confidence": 0.0,
-  "target_clarity": "",
-  "reason": "",
-  "visible_evidence": [],
-  "limitations": []
+  "reason": ""
 }
 
 字段说明：
@@ -100,24 +97,8 @@ JSON 对象必须严格包含以下字段：
 3. confidence
    0 到 1 的小数。
 
-4. target_clarity
-   只能是：
-   CLEAR
-   PARTIAL
-   BLURRY
-   OCCLUDED
-   NOT_VISIBLE
-
-5. reason
+4. reason
    用一句话说明判断依据，必须基于图片可见内容，不得编造。
-
-6. visible_evidence
-   数组，列出 1 到 3 条可见依据。
-   如果没有明确依据，可以为空数组。
-
-7. limitations
-   数组，列出影响判断的限制因素。
-   如果没有明显限制，可以为空数组。
 
 六、输出示例
 
@@ -125,8 +106,5 @@ JSON 对象必须严格包含以下字段：
   "status": "HEAD_DOWN",
   "label": "疑似低头",
   "confidence": 0.68,
-  "target_clarity": "PARTIAL",
-  "reason": "主要学生头部明显朝向桌面方向，存在低头特征，但未能确认是否趴桌。",
-  "visible_evidence": ["头部位置偏低", "面部朝向桌面方向"],
-  "limitations": ["桌面关系不够清晰"]
+  "reason": "主要学生头部明显朝向桌面方向，存在低头特征，但未能确认是否趴桌。"
 }
