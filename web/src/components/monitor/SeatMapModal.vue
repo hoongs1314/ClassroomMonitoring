@@ -20,7 +20,7 @@ const statusMap = {
   HEAD_DOWN: { c: '#F59E0B', t: '提醒' },
   DESK_LYING: { c: '#EF4444', t: '异常' },
   UNCERTAIN: { c: '#64748B', t: '模糊' },
-  SUSPECTED: { c: '#F59E0B', t: '疑似' },
+  SUSPECTED: { c: '#0b90f5', t: '疑似' },
 }
 const getS = (s) => statusMap[s] || statusMap.NORMAL
 

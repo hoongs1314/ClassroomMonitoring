@@ -111,31 +111,6 @@ def switch_class(class_name):
 	return True
 
 
-def box_center(box):
-	"""计算检测框中心点坐标"""
-	return (box[2] + box[0]) / 2, (box[3] + box[1]) / 2
-
-
-def box_distance_sq(box_a, box_b):
-	"""计算两个检测框中心点的平方距离"""
-	ax, ay = box_center(box_a)
-	bx, by = box_center(box_b)
-	return (ax - bx) ** 2 + (ay - by) ** 2
-
-
-def box_iou(box_a, box_b):
-	"""计算两个检测框的 IoU"""
-	x1 = max(box_a[0], box_b[0])
-	y1 = max(box_a[1], box_b[1])
-	x2 = min(box_a[2], box_b[2])
-	y2 = min(box_a[3], box_b[3])
-	inter = max(0, x2 - x1) * max(0, y2 - y1)
-	area_a = max(0, box_a[2] - box_a[0]) * max(0, box_a[3] - box_a[1])
-	area_b = max(0, box_b[2] - box_b[0]) * max(0, box_b[3] - box_b[1])
-	union = area_a + area_b - inter
-	return inter / union if union > 0 else 0
-
-
 def crop_bounds(frame, box, pad):
 	"""按检测框和外扩像素计算图像内裁剪边界"""
 	h, w = frame.shape[:2]
@@ -346,17 +321,20 @@ def detection_box(det):
 
 
 def find_matching_seat(box_xyxy, used_ids):
-	"""在当前座位列表中按 IoU 和中心距离匹配检测框"""
+	"""在当前座位列表中按中心距离匹配检测框"""
 	best_match = None
-	best_iou = 0
+	best_dist = float("inf")
+	cx = (box_xyxy[0] + box_xyxy[2]) / 2
+	cy = (box_xyxy[1] + box_xyxy[3]) / 2
 	for seat in state["seats"]:
 		if seat["seat_id"] in used_ids:
 			continue
-		iou = box_iou(box_xyxy, seat["box"])
-		if iou > 0.3 or box_distance_sq(box_xyxy, seat["box"]) < 5000:
-			if iou > best_iou:
-				best_iou = iou
-				best_match = seat
+		sx = (seat["box"][0] + seat["box"][2]) / 2
+		sy = (seat["box"][1] + seat["box"][3]) / 2
+		dist = (cx - sx) ** 2 + (cy - sy) ** 2
+		if dist < 5000 and dist < best_dist:
+			best_dist = dist
+			best_match = seat
 	return best_match
 
 
@@ -378,9 +356,6 @@ def update_detected_seats(detections, seat_id_counter):
 			matched_n += 1
 			continue
 
-		# 新座位只在与本轮新增框不重叠时创建
-		if any(box_iou(box_xyxy, seat["box"]) > 0.5 for seat in new_seats):
-			continue
 		seat_id_counter += 1
 		new_seats.append(
 			{
