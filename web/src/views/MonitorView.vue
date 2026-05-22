@@ -51,6 +51,8 @@ const events = computed(() => {
       seat_name: e.seat_name || e.seat || '-',
       list_title: e.list_title || e.label || statusLabel(e.status),
       alert_start_time: e.alert_start_time || e.time,
+      source: e.source || e.analysis_source || '-',
+      analysis_source: e.analysis_source || e.source || '-',
     }
   })
 })

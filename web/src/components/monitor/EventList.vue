@@ -40,6 +40,13 @@ function getLabel(e) {
 function getSeatName(e) {
   return e.seat_name || e.seat || '-'
 }
+
+function getSourceLabel(e) {
+  const source = e.analysis_source || e.source || '-'
+  if (source === 'POSE') return 'POSE'
+  if (source === 'VLM') return 'VLM'
+  return source
+}
 </script>
 
 <template>
@@ -78,6 +85,7 @@ function getSeatName(e) {
 
         <div class="event-body">
           <div class="event-seat">座位：{{ getSeatName(item) }}</div>
+          <div class="event-source">来源：{{ getSourceLabel(item) }}</div>
           <div class="event-action">
             智能分析：{{ item.reason}}
           </div>
@@ -167,6 +175,7 @@ function getSeatName(e) {
   min-width: 0;
 }
 .event-seat,
+.event-source,
 .event-action {
   font-size: 14px;
   color: var(--text-secondary);

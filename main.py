@@ -22,8 +22,8 @@ from monitor_service import (
 )
 
 logger = logging.getLogger("monitor.service")
-# Worker数量，上限10防止API限流
-VLM_WORKER_COUNT = 10
+# Worker数量
+VLM_WORKER_COUNT = 30
 # websocket通知间隔
 BROADCAST_INTERVAL_SECONDS = 1.0
 # 视频帧间隔
