@@ -1,3 +1,4 @@
+import uvicorn
 import asyncio
 import logging
 import threading
@@ -14,15 +15,15 @@ from monitor_service import (
 	EVENT_CROP_DIR,
 	detection_analysis_loop,
 	frame_loader_worker,
-	make_vlm_worker,
+	vlm_worker,
 	state,
 	switch_class,
 	websocket_clients,
 )
 
 logger = logging.getLogger("monitor.service")
-# 视觉模型批处理最大线程数
-VLM_WORKER_COUNT = 3
+# Worker数量，上限10防止API限流
+VLM_WORKER_COUNT = 10
 # websocket通知间隔
 BROADCAST_INTERVAL_SECONDS = 1.0
 # 视频帧间隔
@@ -49,8 +50,8 @@ def start_background_threads():
 	threading.Thread(target = frame_loader_worker, daemon = True).start()
 	threading.Thread(target = detection_analysis_loop, daemon = True).start()
 	for worker_id in range(1, VLM_WORKER_COUNT + 1):
-		threading.Thread(target = make_vlm_worker(worker_id), daemon = True).start()
-	logger.info("后台线程已启动: 帧读取 + 检测 + %d个VLM", VLM_WORKER_COUNT)
+		threading.Thread(target = vlm_worker, args = (worker_id,), daemon = True).start()
+	logger.info("[App] 后台线程已启动: 帧读取 + 检测 + %d个VLM", VLM_WORKER_COUNT)
 
 
 async def broadcast_status_loop():
@@ -74,7 +75,7 @@ async def lifespan(app: FastAPI):
 	broadcast_task.cancel()
 	with suppress(asyncio.CancelledError):
 		await broadcast_task
-	logger.info("服务关闭")
+	logger.info("[App] 服务关闭")
 
 
 app = FastAPI(lifespan = lifespan)
@@ -119,7 +120,7 @@ def iter_mjpeg_frames():
 @app.get("/video_feed")
 def video_feed_endpoint():
 	"""视频流"""
-	logger.info("[MJPEG] 视频流客户端连接")
+	logger.info("[App] 视频流客户端连接")
 	return StreamingResponse(iter_mjpeg_frames(), media_type = "multipart/x-mixed-replace; boundary=frame")
 
 
@@ -131,14 +132,17 @@ def api_latest_frame():
 	success, encoded_img = cv2.imencode(".jpg", state["frame"])
 	if not success:
 		return Response(status_code = 204, headers = { "Cache-Control": "no-store" })
-	return Response(content = encoded_img.tobytes(), media_type = "image/jpeg", headers = { "Cache-Control": "no-store", "Pragma": "no-cache", "Expires": "0" })
+	return Response(
+		content = encoded_img.tobytes(), media_type = "image/jpeg",
+		headers = { "Cache-Control": "no-store", "Pragma": "no-cache", "Expires": "0" }
+		)
 
 
 @app.post("/api/start")
 def api_start_monitoring():
 	"""启动监控"""
 	state["is_running"] = True
-	logger.info("[API] 启动监控: %s", state["current_class"])
+	logger.info("[App] 启动监控: %s", state["current_class"])
 	return { "ok": True }
 
 
@@ -149,7 +153,7 @@ def api_stop_monitoring():
 	state["seats"] = []
 	state["events"] = []
 	state["counts"] = { "total": 0, "focus": 0, "normal": 0 }
-	logger.info("[API] 停止监控")
+	logger.info("[App] 停止监控")
 	return { "ok": True }
 
 
@@ -165,15 +169,14 @@ async def api_switch_class(request: Request):
 	body = await request.json()
 	class_name = (body or { }).get("class", "")
 	if class_name not in state["class_list"]:
-		logger.warning("[API] 班级不存在: %s", class_name)
+		logger.warning("[App] 班级不存在: %s", class_name)
 		return { "ok": False, "error": "班级不存在" }
 	switch_class(class_name)
-	logger.info("[API] 切换班级: %s", class_name)
+	logger.info("[App] 切换班级: %s", class_name)
 	return { "ok": True, "current": state["current_class"] }
 
 
 if __name__ == "__main__":
-	"""以脚本方式启动本地 FastAPI 服务"""
-	import uvicorn
+	"""启动 FastAPI 服务"""
 
 	uvicorn.run(app, host = "0.0.0.0", port = 8997)

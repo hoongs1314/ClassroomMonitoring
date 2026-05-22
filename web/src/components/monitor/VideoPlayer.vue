@@ -34,7 +34,7 @@ const statusMap = {
 const getS = (s) => statusMap[s] || statusMap.NORMAL
 
 const abnormalSeats = computed(() =>
-  props.seats.filter((s) => !['NORMAL', 'SUSPECTED'].includes(s.status))
+  props.seats.filter((s) => ['HEAD_DOWN', 'DESK_LYING'].includes(s.status))
 )
 
 function getBoxStyle(box) {
@@ -132,9 +132,9 @@ function seekVideo(val) {
         class="detect-rect"
         :style="[getBoxStyle(s.box), { borderColor: getS(s.status).c }]"
       >
-        <span class="detect-label" :style="{ background: getS(s.status).c }">
-          {{ s.seat_code }}
-        </span>
+<!--        <span class="detect-label" :style="{ background: getS(s.status).c }">-->
+<!--          {{ s.seat_code }}-->
+<!--        </span>-->
       </div>
 
       <!-- 视频控制栏 -->
