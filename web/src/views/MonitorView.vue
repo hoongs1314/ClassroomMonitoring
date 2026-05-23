@@ -33,7 +33,9 @@ const counts = computed(() => status.value?.counts || { total: 0, focus: 0, norm
 function statusLabel(statusCode) {
   const map = {
     HEAD_DOWN: '疑似低头',
-    DESK_LYING: '疑似趴桌',
+    DESK_LYING: '疑似睡觉',
+    TURNING_HEAD: '疑似转头',
+    EATING: '疑似吃东西',
     UNCERTAIN: '无法确定',
     EMPTY: '未看到可分析学生',
     NORMAL: '正常或未见明显异常',
@@ -192,13 +194,13 @@ clickable
               @click="openSeatMap"
             />
             <StatsCard
-              :label="'重点提醒'"
+              :label="'警告'"
               :value="counts.focus"
               type="danger"
               :icon="AlertOutlined"
             />
             <StatsCard
-              :label="'普通提醒'"
+              :label="'提示'"
               :value="counts.normal"
               type="warning"
               :icon="BellOutlined"

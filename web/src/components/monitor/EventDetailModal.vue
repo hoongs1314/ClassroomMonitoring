@@ -48,14 +48,13 @@ const levelColor = (level) => {
 
 const statusText = (v) => {
   const map = {
-    DESK_LYING: '疑似趴桌',
+    DESK_LYING: '疑似睡觉',
     HEAD_DOWN: '疑似低头',
+    TURNING_HEAD: '疑似转头',
+    EATING: '疑似吃东西',
     NORMAL: '正常',
     UNCERTAIN: '无法确定',
     EMPTY: '空位',
-    STRONG: '明显异常',
-    WEAK: '轻度异常',
-    INVALID: '关键点不足',
   }
   return map[v] || v || '-'
 }
