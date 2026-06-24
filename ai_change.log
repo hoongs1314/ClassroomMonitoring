@@ -38,3 +38,12 @@
   - `ai_change.log`：追加本阶段变更记录。
 - 验证方式：已执行 `python -m py_compile dependencies.py routers\auth_routes.py routers\teacher_routes.py config.py database.py models.py auth_utils.py main.py monitor_service.py video_stream_util.py`，结果通过；已执行导入级复核，确认 ORM 15 张表、认证 4 个路由、教师 6 个路由可加载；已执行 `git diff` 查看变更。
 - 备注：登录密码仍通过 JSON body 提交；资源 ID、分页和筛选条件通过请求头传入，未使用路径 ID。
+
+- 日期：2026-06-24
+- 修改功能：接入监控会话、座位、事件和VLM复核结果持久化
+- 修改文件：
+  - `monitor_service.py`：新增监控会话创建/结束、座位快照 upsert、异常事件写入、事件帧写入、VLM 复核记录和事件补充更新逻辑；数据库异常时记录日志但不阻断实时监控。
+  - `main.py`：启动接口支持通过请求头传入班级、教师、课程、操作人信息，并调用持久化启动/停止函数。
+  - `ai_change.log`：追加本阶段变更记录。
+- 验证方式：已执行 `python -m py_compile main.py monitor_service.py video_stream_util.py database.py models.py`，结果通过；已执行 `models` 和数据库会话导入复核，结果通过；尝试导入 `monitor_service` 时当前环境缺少 `cv2`，需安装完整 `requirements.txt` 后再做运行态导入；已执行 diff 复核。
+- 备注：图片和视频仍保存为文件路径/URL，不写入 MySQL 二进制。

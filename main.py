@@ -6,7 +6,7 @@ import time
 import cv2
 
 from contextlib import asynccontextmanager, suppress
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Header, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -18,6 +18,8 @@ from monitor_service import (
 	frame_loader_worker,
 	vlm_worker,
 	state,
+	start_monitoring,
+	stop_monitoring,
 	switch_class,
 	websocket_clients,
 )
@@ -31,6 +33,17 @@ VLM_WORKER_COUNT = 30
 BROADCAST_INTERVAL_SECONDS = 1.0
 # 视频帧间隔
 FRAME_INTERVAL_SECONDS = 0.04
+
+
+def parse_optional_header_int(value, header_name):
+	"""解析请求头中的整数参数，避免路径拼接 ID。"""
+	if value in (None, ""):
+		return None
+	try:
+		return int(value)
+	except ValueError:
+		logger.warning("[App] 请求头%s不是整数: %s", header_name, value)
+		return None
 
 
 def build_status_payload():
@@ -145,22 +158,33 @@ def api_latest_frame():
 
 
 @app.post("/api/start")
-def api_start_monitoring():
+def api_start_monitoring(
+	x_class_name = Header(default = None, alias = "X-Class-Name"),
+	x_teacher_id = Header(default = None, alias = "X-Teacher-Id"),
+	x_subject_id = Header(default = None, alias = "X-Subject-Id"),
+	x_lesson_title = Header(default = None, alias = "X-Lesson-Title"),
+	x_operator_user_id = Header(default = None, alias = "X-Operator-User-Id"),
+	x_operator_name = Header(default = None, alias = "X-Operator-Name"),
+):
 	"""启动监控"""
-	state["is_running"] = True
+	result = start_monitoring(
+		class_name = x_class_name,
+		teacher_id = parse_optional_header_int(x_teacher_id, "X-Teacher-Id"),
+		subject_id = parse_optional_header_int(x_subject_id, "X-Subject-Id"),
+		lesson_title = x_lesson_title,
+		operator_user_id = parse_optional_header_int(x_operator_user_id, "X-Operator-User-Id"),
+		operator_name = x_operator_name,
+	)
 	logger.info("[App] 启动监控: %s", state["current_class"])
-	return { "ok": True }
+	return result
 
 
 @app.post("/api/stop")
 def api_stop_monitoring():
 	"""停止监控、清空状态"""
-	state["is_running"] = False
-	state["seats"] = []
-	state["events"] = []
-	state["counts"] = { "total": 0, "focus": 0, "normal": 0 }
+	result = stop_monitoring()
 	logger.info("[App] 停止监控")
-	return { "ok": True }
+	return result
 
 
 @app.get("/api/classes")

@@ -7,7 +7,9 @@ import time
 import cv2
 import numpy as np
 from collections import deque
+from datetime import datetime
 from pathlib import Path
+from uuid import uuid4
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
@@ -15,6 +17,17 @@ from sahi import AutoDetectionModel
 from sahi.predict import get_sliced_prediction
 from scipy.optimize import linear_sum_assignment
 
+from database import db_session
+from models import (
+	EduClass,
+	EduSubject,
+	EduTeacher,
+	MonitorBehaviorEvent,
+	MonitorEventFrame,
+	MonitorSession,
+	MonitorSessionSeat,
+	MonitorVlmReview,
+)
 from video_stream_util import MockMonitorStream
 
 # 当前目录绝对路径
@@ -34,6 +47,12 @@ CLASS_VIDEOS = {
 }
 
 DEFAULT_CLASS = "1班"
+CLASS_CODE_MAP = {
+	"1班": "CLASS_1",
+	"2班": "CLASS_2",
+	"3班": "CLASS_3",
+	"4班": "CLASS_4",
+}
 
 # 同一座位 VLM 送检间隔（秒）
 VLM_INVOKE_SECONDS = 10
@@ -72,6 +91,12 @@ detect_history = {}
 normal_streak = {}
 # 每座当前告警等级 seat_id: "警告" | "提示" | None
 alert_level_map = {}
+persist_state = {
+	"session_id": None,
+	"class_id": None,
+	"seat_db_ids": {},
+	"event_db_ids": {},
+}
 
 
 def get_video_size(video_path):
@@ -141,6 +166,7 @@ def detection_analysis_loop():
 		detections = prediction.object_prediction_list
 		seat_id_counter, _matched_n, _new_n = update_detected_seats(detections, seat_id_counter)
 
+		persist_seats()
 		# 根据检测类别更新座位状态并写入事件
 		apply_detect_status(frame)
 
@@ -151,6 +177,7 @@ def detection_analysis_loop():
 			"focus": sum(1 for v in alert_level_map.values() if v == "警告"),
 			"normal": sum(1 for v in alert_level_map.values() if v == "提示"),
 		}
+		update_session_counts()
 
 		# 有异常才送VLM分析
 		alert_seats = [s for s in state["seats"] if alert_level_map.get(s["seat_id"]) in ("警告", "提示")]
@@ -164,6 +191,278 @@ def frame_loader_worker():
 	while True:
 		state["frame"] = video_stream.get_latest_frame()
 		time.sleep(0.04)
+
+
+def _ns_to_datetime(ts_ns):
+	return datetime.fromtimestamp(ts_ns / 1_000_000_000)
+
+
+def _build_session_no():
+	return "MS%s%s" % (datetime.now().strftime("%Y%m%d%H%M%S"), uuid4().hex[:8])
+
+
+def _safe_persist(action, description):
+	try:
+		return action()
+	except Exception as exc:
+		logger.warning("[Persist] %s失败: %s", description, exc)
+		return None
+
+
+def _resolve_class(db, class_name):
+	class_code = CLASS_CODE_MAP.get(class_name)
+	query = db.query(EduClass).filter(EduClass.enabled == 1)
+	if class_code:
+		row = query.filter(EduClass.class_code == class_code).first()
+		if row:
+			return row
+	return query.filter(EduClass.class_name == class_name).first()
+
+
+def start_monitoring(class_name = None, teacher_id = None, subject_id = None, lesson_title = None, operator_user_id = None, operator_name = None):
+	"""启动监控并尝试创建持久化会话；数据库异常不阻断实时监控。"""
+	target_class = class_name or state["current_class"]
+	if target_class != state["current_class"] and target_class in state["class_list"]:
+		switch_class(target_class)
+	state["is_running"] = True
+	reset_detection_state()
+	persist_state["session_id"] = None
+	persist_state["class_id"] = None
+	persist_state["seat_db_ids"] = {}
+	persist_state["event_db_ids"] = {}
+
+	def action():
+		with db_session() as db:
+			edu_class = _resolve_class(db, state["current_class"])
+			if not edu_class:
+				logger.warning("[Persist] 班级未入库，跳过会话持久化: %s", state["current_class"])
+				return None
+			teacher = db.query(EduTeacher).filter(EduTeacher.id == teacher_id).first() if teacher_id else None
+			subject = db.query(EduSubject).filter(EduSubject.id == subject_id).first() if subject_id else None
+			session = MonitorSession(
+				session_no = _build_session_no(),
+				class_id = edu_class.id,
+				class_name = edu_class.class_name,
+				teacher_id = teacher.id if teacher else None,
+				teacher_name = teacher.teacher_name if teacher else None,
+				subject_id = subject.id if subject else None,
+				subject_name = subject.subject_name if subject else None,
+				lesson_title = lesson_title,
+				operator_user_id = operator_user_id,
+				operator_name = operator_name,
+				video_path = str(CLASS_VIDEOS[state["current_class"]]),
+				img_width = state["img_w"],
+				img_height = state["img_h"],
+				status = "RUNNING",
+				started_at = datetime.utcnow(),
+				last_heartbeat_at = datetime.utcnow(),
+				rule_config_json = {
+					"vlm_invoke_seconds": VLM_INVOKE_SECONDS,
+					"window_size": WINDOW_SIZE,
+					"desk_lying_warn_count": DESK_LYING_WARN_COUNT,
+					"other_alert_count": OTHER_ALERT_COUNT,
+					"normal_recover_count": NORMAL_RECOVER_COUNT,
+				},
+			)
+			db.add(session)
+			db.flush()
+			persist_state["session_id"] = session.id
+			persist_state["class_id"] = edu_class.id
+			logger.info("[Persist] 监控会话已创建: %s", session.session_no)
+			return session.id
+
+	_safe_persist(action, "创建监控会话")
+	return { "ok": True, "session_id": persist_state["session_id"] }
+
+
+def stop_monitoring():
+	"""停止监控并结束持久化会话。"""
+	total_seat_count = len(persist_state["seat_db_ids"])
+	warning_count = sum(1 for event in state["events"] if event.get("level") == "警告")
+	notice_count = sum(1 for event in state["events"] if event.get("level") == "提示")
+	event_count = len(state["events"])
+	state["is_running"] = False
+	state["seats"] = []
+	state["events"] = []
+	state["counts"] = { "total": 0, "focus": 0, "normal": 0 }
+	session_id = persist_state.get("session_id")
+
+	def action():
+		if not session_id:
+			return None
+		with db_session() as db:
+			session = db.query(MonitorSession).filter(MonitorSession.id == session_id).first()
+			if session:
+				session.status = "STOPPED"
+				session.ended_at = datetime.utcnow()
+				session.last_heartbeat_at = datetime.utcnow()
+				session.total_seat_count = total_seat_count
+				session.warning_count = warning_count
+				session.notice_count = notice_count
+				session.event_count = event_count
+
+	_safe_persist(action, "结束监控会话")
+	persist_state["session_id"] = None
+	persist_state["class_id"] = None
+	persist_state["seat_db_ids"] = {}
+	persist_state["event_db_ids"] = {}
+	return { "ok": True }
+
+
+def persist_seats():
+	session_id = persist_state.get("session_id")
+	if not session_id:
+		return
+
+	def action():
+		with db_session() as db:
+			for seat in state["seats"]:
+				box = seat["box"]
+				row = (
+					db.query(MonitorSessionSeat)
+					.filter(
+						MonitorSessionSeat.session_id == session_id,
+						MonitorSessionSeat.runtime_seat_id == seat["seat_id"],
+					)
+					.first()
+				)
+				if not row:
+					row = MonitorSessionSeat(
+						session_id = session_id,
+						runtime_seat_id = seat["seat_id"],
+						seat_code = seat["seat_code"],
+						box_x1 = box[0],
+						box_y1 = box[1],
+						box_x2 = box[2],
+						box_y2 = box[3],
+						first_seen_at = datetime.utcnow(),
+					)
+					db.add(row)
+					db.flush()
+				row.seat_code = seat["seat_code"]
+				row.box_x1 = box[0]
+				row.box_y1 = box[1]
+				row.box_x2 = box[2]
+				row.box_y2 = box[3]
+				row.status = seat.get("status", "NORMAL")
+				row.det_category = seat.get("det_category")
+				row.analysis_source = seat.get("analysis_source")
+				row.locked_abnormal = 1 if seat.get("locked_abnormal") else 0
+				row.last_seen_at = datetime.utcnow()
+				persist_state["seat_db_ids"][seat["seat_id"]] = row.id
+
+	_safe_persist(action, "保存座位快照")
+
+
+def update_session_counts():
+	session_id = persist_state.get("session_id")
+	if not session_id:
+		return
+
+	def action():
+		with db_session() as db:
+			session = db.query(MonitorSession).filter(MonitorSession.id == session_id).first()
+			if not session:
+				return
+			session.last_heartbeat_at = datetime.utcnow()
+			session.total_seat_count = state["counts"]["total"]
+			session.warning_count = state["counts"]["focus"]
+			session.notice_count = state["counts"]["normal"]
+			session.event_count = len(state["events"])
+
+	_safe_persist(action, "更新会话统计")
+
+
+def persist_event(event_payload, target, file_name, ts_ns):
+	session_id = persist_state.get("session_id")
+	class_id = persist_state.get("class_id")
+	if not session_id or not class_id:
+		return
+
+	def action():
+		with db_session() as db:
+			box = target["box"]
+			seat_db_id = persist_state["seat_db_ids"].get(target["seat_id"])
+			event = MonitorBehaviorEvent(
+				event_uid = event_payload["event_id"],
+				session_id = session_id,
+				class_id = class_id,
+				seat_id = seat_db_id,
+				seat_code = target["seat_code"],
+				level = event_payload.get("level", ""),
+				status = event_payload.get("status", ""),
+				label = event_payload.get("label", ""),
+				reason = event_payload.get("reason", ""),
+				source = event_payload.get("source", "DETECT"),
+				analysis_source = event_payload.get("analysis_source", "DETECT"),
+				image_url = event_payload.get("url"),
+				image_path = str(EVENT_CROP_DIR / file_name),
+				box_x1 = box[0],
+				box_y1 = box[1],
+				box_x2 = box[2],
+				box_y2 = box[3],
+				event_time = _ns_to_datetime(ts_ns),
+				confirmed_by_vlm = 1 if event_payload.get("analysis_source") == "VLM" else 0,
+			)
+			db.add(event)
+			db.flush()
+			db.add(
+				MonitorEventFrame(
+					event_id = event.id,
+					frame_index = 0,
+					frame_time = event.event_time,
+					focus_image_url = event.image_url,
+					focus_image_path = event.image_path,
+					seat_code = target["seat_code"],
+					status = event.status,
+					status_text = event.label,
+					box_x1 = box[0],
+					box_y1 = box[1],
+					box_x2 = box[2],
+					box_y2 = box[3],
+					raw_payload_json = event_payload,
+				)
+			)
+			persist_state["event_db_ids"][event_payload["event_id"]] = event.id
+
+	_safe_persist(action, "保存异常事件")
+
+
+def persist_vlm_result(event_payload, answer, raw_response, seat, ts_ns, latency_ms = None):
+	session_id = persist_state.get("session_id")
+	if not session_id:
+		return
+	event_uid = event_payload.get("event_id") if event_payload else None
+
+	def action():
+		with db_session() as db:
+			event_id = persist_state["event_db_ids"].get(event_uid)
+			event = db.query(MonitorBehaviorEvent).filter(MonitorBehaviorEvent.id == event_id).first() if event_id else None
+			if event:
+				event.reason = answer.get("reason", event.reason)
+				event.label = answer.get("label", event.label)
+				event.analysis_source = "VLM"
+				event.source = "VLM"
+				event.confirmed_by_vlm = 1
+			db.add(
+				MonitorVlmReview(
+					event_id = event.id if event else None,
+					session_id = session_id,
+					seat_id = persist_state["seat_db_ids"].get(seat["seat_id"]),
+					model_name = "qwen-vl-max",
+					request_image_url = event_payload.get("url") if event_payload else None,
+					request_image_path = str(EVENT_CROP_DIR / Path(event_payload.get("url", "")).name) if event_payload and event_payload.get("url") else None,
+					raw_response = raw_response,
+					parsed_status = answer.get("status"),
+					parsed_label = answer.get("label"),
+					parsed_reason = answer.get("reason"),
+					success = 1,
+					latency_ms = latency_ms,
+					created_at = _ns_to_datetime(ts_ns),
+				)
+			)
+
+	_safe_persist(action, "保存VLM复核")
 
 
 def update_detected_seats(detections, seat_id_counter):
@@ -425,13 +724,13 @@ def handle_review_result(result, frame):
 	"""处理 VLM 返回结果"""
 	if result is None:
 		return False
-	response, seat, ts_ms = result
+	response, seat, ts_ms, latency_ms = result
 	if not state["is_running"]:
 		return True
 
 	try:
 		answer = parse_model_json(response)
-		apply_vlm_result(answer, frame, seat, ts_ms)
+		apply_vlm_result(answer, frame, seat, ts_ms, response, latency_ms)
 	except Exception as exc:
 		logger.error("[VLM] 结果处理异常: %s %s", seat["seat_code"], exc, exc_info = True)
 	return True
@@ -461,10 +760,10 @@ def invoke_review(vlm, sys_content, frame, seat):
 	).content
 	end = time.time()
 	logger.info("[VLM] 模型分析耗时 %.2f", end - start)
-	return response, seat, time.time_ns()
+	return response, seat, time.time_ns(), int((end - start) * 1000)
 
 
-def apply_vlm_result(answer, frame, seat, ts_ms):
+def apply_vlm_result(answer, frame, seat, ts_ms, raw_response = "", latency_ms = None):
 	"""VLM复核结果补充已有事件的 reason 和 label，不改变检测判定的告警等级"""
 	current = None
 	for s in state["seats"]:
@@ -480,40 +779,48 @@ def apply_vlm_result(answer, frame, seat, ts_ms):
 
 	if answer["status"] in ABNORMAL_STATUSES:
 		# 找到该座位最近的事件，用VLM结果补充reason/label
+		event_payload = None
 		for ev in state["events"]:
 			if ev["seat"] == target["seat_code"]:
 				ev["reason"] = answer.get("reason", ev.get("reason", ""))
 				ev["label"] = answer.get("label", ev.get("label", ""))
 				ev["analysis_source"] = "VLM"
 				ev["source"] = "VLM"
+				event_payload = ev
 				break
 		else:
 			# 没有事件时回退创建（极少数情况）
-			append_event(answer, target, frame, ts_ms)
+			event_payload = append_event(answer, target, frame, ts_ms)
+		persist_vlm_result(event_payload, answer, raw_response, target, ts_ms, latency_ms)
 		logger.info("[VLM] 确认异常行为: %s %s", target["seat_code"], answer["status"])
 
 
 def append_event(answer, target, frame, ts_ms):
 	"""事件写入及本地持久化"""
 	file_name = f"ev_{ts_ms}_{target['seat_code']}.jpg"
+	event_uid = f"EV{ts_ms}_{target['seat_code']}"
 	x1, y1, x2, y2 = crop_bounds(frame, target["box"], 10)
 	cv2.imwrite(str(EVENT_CROP_DIR / file_name), frame[y1:y2, x1:x2])
+	event_payload = {
+		"id": time.time(),
+		"event_id": event_uid,
+		"time": time.strftime("%H:%M:%S"),
+		"seat": target["seat_code"],
+		"level": answer.get("level", alert_level_map.get(target["seat_id"], "")),
+		"status": answer["status"],
+		"source": target.get("analysis_source", "VLM"),
+		"analysis_source": target.get("analysis_source", "VLM"),
+		"label": answer["label"],
+		"reason": answer["reason"],
+		"url": f"/event_crops/{file_name}",
+		"box": target["box"],
+	}
 	state["events"].insert(
 		0,
-		{
-			"id": time.time(),
-			"time": time.strftime("%H:%M:%S"),
-			"seat": target["seat_code"],
-			"level": answer.get("level", alert_level_map.get(target["seat_id"], "")),
-			"status": answer["status"],
-			"source": target.get("analysis_source", "VLM"),
-			"analysis_source": target.get("analysis_source", "VLM"),
-			"label": answer["label"],
-			"reason": answer["reason"],
-			"url": f"/event_crops/{file_name}",
-			"box": target["box"],
-		},
+		event_payload,
 	)
+	persist_event(event_payload, target, file_name, ts_ms)
+	return event_payload
 
 
 def switch_class(class_name):
