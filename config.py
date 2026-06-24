@@ -26,6 +26,8 @@ class AppConfig:
 	refresh_token_expire_days: int
 	auto_create_tables: bool
 	aliyun_api_key: str
+	admin_username: str
+	admin_password: str
 
 
 def _build_database_url():
@@ -51,6 +53,8 @@ def get_config():
 		refresh_token_expire_days = int(os.environ.get("REFRESH_TOKEN_EXPIRE_DAYS", "14")),
 		auto_create_tables = _get_bool("AUTO_CREATE_TABLES", False),
 		aliyun_api_key = os.environ.get("ALIYUN_API_KEY", ""),
+		admin_username = os.environ.get("ADMIN_USERNAME", "admin"),
+		admin_password = os.environ.get("ADMIN_PASSWORD", ""),
 	)
 
 

@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+from bootstrap import bootstrap_admin_user
 from database import init_database
 from monitor_service import (
 	EVENT_CROP_DIR,
@@ -86,6 +87,7 @@ async def broadcast_status_loop():
 async def lifespan(app: FastAPI):
 	"""应用生命周期函数"""
 	init_database()
+	bootstrap_admin_user()
 	start_background_threads()
 	broadcast_task = asyncio.create_task(broadcast_status_loop())
 	yield

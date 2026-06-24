@@ -85,3 +85,14 @@
   - `ai_change.log`：追加本阶段变更记录。
 - 验证方式：已执行 `docker compose config` 和 `docker compose config --quiet`，配置校验通过；前端已在上一阶段执行 `npm run build` 通过；已执行 diff 复核。
 - 备注：Docker 启动仍需要本地存在模型文件、输入视频和有效 `ALIYUN_API_KEY`。
+
+- 日期：2026-06-24
+- 修改功能：补充首次部署管理员账号引导
+- 修改文件：
+  - `config.py`、`.env.example`：新增 `ADMIN_USERNAME` 和 `ADMIN_PASSWORD` 配置。
+  - `bootstrap.py`：新增管理员账号初始化逻辑，显式设置 `ADMIN_PASSWORD` 时创建或启用管理员账号。
+  - `main.py`：应用启动时执行管理员账号引导。
+  - `docker-compose.yml`、`readme.md`：补充管理员账号环境变量和启动说明。
+  - `ai_change.log`：追加本次变更记录。
+- 验证方式：已执行 `python -m py_compile bootstrap.py config.py database.py models.py auth_utils.py dependencies.py routers\auth_routes.py routers\teacher_routes.py main.py monitor_service.py video_stream_util.py`，结果通过；已执行导入复核，确认 ORM 15 张表、认证 4 个路由、教师 8 个路由可加载；已执行 `docker compose config --quiet`，结果通过；已执行 `npm run build`，结果通过，仍有 Vite chunk 体积警告；已执行 diff 复核。
+- 备注：未设置 `ADMIN_PASSWORD` 时不会创建默认弱密码账号。

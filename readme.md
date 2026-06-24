@@ -60,10 +60,19 @@ mysql -u root -p classroom_monitoring < db/001_init_mysql.sql
 docker compose up -d --build
 ```
 
+首次需要登录时，建议先在 `.env` 或当前终端设置：
+
+```powershell
+$env:ADMIN_USERNAME="admin"
+$env:ADMIN_PASSWORD="请替换成强密码"
+$env:JWT_SECRET_KEY="请替换成随机长密钥"
+$env:ALIYUN_API_KEY="你的阿里云Key"
+```
+
 访问：
 
 - 前端：http://localhost:8080
 - 后端：http://localhost:8997
 - MySQL：localhost:3306
 
-首次启动会自动执行 `db/001_init_mysql.sql` 初始化表结构。`admin` 账号是禁用占位账号，需要替换安全密码哈希并启用后才能登录。
+首次启动会自动执行 `db/001_init_mysql.sql` 初始化表结构。设置 `ADMIN_PASSWORD` 后，后端启动会创建或启用管理员账号。
