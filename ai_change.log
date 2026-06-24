@@ -13,3 +13,16 @@
   - `ai_change.log`：追加本次 SQL 文件生成记录。
 - 验证方式：已执行 SQL 文件内容检查，确认包含 15 张 `CREATE TABLE IF NOT EXISTS` 表；已执行高风险语句文本检查，未发现独立 `DROP`、`TRUNCATE`、`DELETE` 语句；已执行 `git diff -- db/001_init_mysql.sql ai_change.log` 查看变更，未执行数据库导入。
 - 备注：SQL 文件不包含建库、删库、删表或数据清理语句；初始管理员账号为禁用占位账号，后续接入登录时需要替换安全密码哈希并启用。
+
+- 日期：2026-06-24
+- 修改功能：接入后端配置、数据库连接、ORM模型和认证工具基础
+- 修改文件：
+  - `requirements.txt`：新增 SQLAlchemy、PyMySQL、dotenv、passlib、python-jose 等数据库和认证依赖。
+  - `config.py`：新增环境变量配置读取，支持 MySQL 分项配置或 `DATABASE_URL`。
+  - `database.py`：新增 SQLAlchemy 引擎、会话管理和可选自动建表入口。
+  - `models.py`：新增与 MySQL 初始化表结构对应的 ORM 模型。
+  - `auth_utils.py`：新增密码哈希、密码校验、JWT access/refresh token 工具。
+  - `.env.example`：新增项目运行所需环境变量示例。
+  - `ai_change.log`：追加本阶段变更记录。
+- 验证方式：已执行 `python -m py_compile config.py database.py models.py auth_utils.py main.py monitor_service.py video_stream_util.py`，结果通过；已执行 `git diff` 查看变更。
+- 备注：本阶段只新增基础能力，尚未改变现有接口行为，也未连接真实 MySQL 执行导入。
