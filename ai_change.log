@@ -1,0 +1,15 @@
+- 日期：2026-06-23
+- 修改功能：生成 Python 项目依赖文件
+- 修改文件：
+  - `requirements.txt`：根据 `main.py`、`monitor_service.py`、`video_stream_util.py` 的第三方导入和 SAHI 使用的 Ultralytics 后端，新增项目直接运行依赖。
+  - `ai_change.log`：记录本次依赖文件生成过程。
+- 验证方式：已执行 `python -m py_compile main.py monitor_service.py video_stream_util.py`，结果通过；已执行 `git diff` 查看变更。
+- 备注：未锁定精确版本，避免将当前不完整 Python 环境中的版本误作为项目基线。
+
+- 日期：2026-06-24
+- 修改功能：生成 MySQL 初始化表结构文件
+- 修改文件：
+  - `db/001_init_mysql.sql`：新增用户、角色、登录日志、教师、班级、教师班级权限、监控会话、座位快照、异常事件、事件帧、VLM 复核和教学复盘相关表结构，并加入基础角色、管理员占位账号、学科和班级初始数据。
+  - `ai_change.log`：追加本次 SQL 文件生成记录。
+- 验证方式：已执行 SQL 文件内容检查，确认包含 15 张 `CREATE TABLE IF NOT EXISTS` 表；已执行高风险语句文本检查，未发现独立 `DROP`、`TRUNCATE`、`DELETE` 语句；已执行 `git diff -- db/001_init_mysql.sql ai_change.log` 查看变更，未执行数据库导入。
+- 备注：SQL 文件不包含建库、删库、删表或数据清理语句；初始管理员账号为禁用占位账号，后续接入登录时需要替换安全密码哈希并启用。
