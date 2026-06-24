@@ -1,6 +1,5 @@
 <script setup>
 import { theme } from 'ant-design-vue'
-import MainLayout from '@/layouts/MainLayout.vue'
 
 const themeConfig = {
   algorithm: theme.darkAlgorithm,
@@ -22,6 +21,6 @@ const themeConfig = {
 
 <template>
   <a-config-provider :theme="themeConfig">
-    <MainLayout />
+    <router-view />
   </a-config-provider>
 </template>

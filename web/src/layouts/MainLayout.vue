@@ -2,7 +2,6 @@
 import { ref } from 'vue'
 import { useApi } from '@/composables/useApi'
 import AppSidebar from '@/components/common/AppSidebar.vue'
-import MonitorView from '@/views/MonitorView.vue'
 
 const { requestJson } = useApi()
 
@@ -31,7 +30,7 @@ async function handleSelectClass(cls) {
       @select-class="handleSelectClass"
     />
     <main class="app-content">
-      <MonitorView :current-class="currentClass" />
+      <router-view :current-class="currentClass" />
     </main>
   </div>
 </template>

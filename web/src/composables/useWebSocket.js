@@ -13,7 +13,9 @@ const MAX_RECONNECT_DELAY = 30000
 
 function getWsUrl() {
   const API_BASE = window.MONITOR_API_BASE || 'http://localhost:8997'
-  return `${API_BASE.replace(/^http/, 'ws')}/ws`
+  const token = localStorage.getItem('monitor_access_token') || ''
+  const suffix = token ? `?token=${encodeURIComponent(token)}` : ''
+  return `${API_BASE.replace(/^http/, 'ws')}/ws${suffix}`
 }
 
 function scheduleReconnect(connectFn) {

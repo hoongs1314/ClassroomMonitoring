@@ -55,3 +55,20 @@
   - `ai_change.log`：追加本阶段变更记录。
 - 验证方式：已执行 `python -m py_compile routers\teacher_routes.py dependencies.py models.py`，结果通过；已执行教师路由导入复核，确认 8 个路由方法可加载；已执行 diff 复核。
 - 备注：复盘长文本通过 JSON body 提交；管理员代提交复盘时需通过 `X-Teacher-Id` 指定教师。
+
+- 日期：2026-06-24
+- 修改功能：新增前端登录、历史监控和教学复盘页面
+- 修改文件：
+  - `web/src/composables/useApi.js`：新增 token 存取、认证请求头和 401 清理登录态。
+  - `web/src/composables/useWebSocket.js`：WebSocket 地址附带 token 查询参数。
+  - `web/src/router/index.js`：新增登录、实时监控、历史监控、复盘路由和登录守卫。
+  - `web/src/App.vue`、`web/src/layouts/MainLayout.vue`：改为路由驱动布局。
+  - `web/src/components/common/AppSidebar.vue`：新增实时监控/历史复盘导航、授权班级读取和退出登录。
+  - `web/src/views/LoginView.vue`：新增登录页面。
+  - `web/src/views/HistoryView.vue`：新增教师可见历史监控列表。
+  - `web/src/views/SessionReviewView.vue`：新增监控详情、异常事件和教学复盘提交页面。
+  - `web/src/views/MonitorView.vue`：启动监控时通过请求头携带班级、教师和操作人信息。
+  - `web/src/main.js`：注册复盘评分所需组件。
+  - `ai_change.log`：追加本阶段变更记录。
+- 验证方式：已在 `web` 目录执行 `npm run build`，结果通过；Vite 提示主 chunk 超过 500KB，但不影响构建；已执行 diff 复核。
+- 备注：前端内部路由使用 query 传递 sessionId，后端接口仍通过请求头传递资源 ID。

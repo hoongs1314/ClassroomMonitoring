@@ -5,9 +5,12 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   VideoCameraFilled,
+  HistoryOutlined,
+  LogoutOutlined,
 } from '@ant-design/icons-vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useWebSocket } from '@/composables/useWebSocket'
-import { useApi } from '@/composables/useApi'
+import { useApi, getStoredUser } from '@/composables/useApi'
 
 defineProps({
   collapsed: Boolean,
@@ -17,27 +20,43 @@ defineProps({
 const emit = defineEmits(['toggle', 'select-class'])
 
 const { isConnected, status } = useWebSocket()
-const { requestJson } = useApi()
+const { requestJson, clearAuth } = useApi()
+const router = useRouter()
+const route = useRoute()
 
 const classList = ref([])
 const activeClass = ref('')
+const currentUser = ref(getStoredUser())
 
 onMounted(async () => {
   try {
-    const data = await requestJson('/api/classes')
-    classList.value = data.classes || []
-    activeClass.value = data.current || classList.value[0] || ''
+    const data = await requestJson('/api/teacher/classes')
+    classList.value = (data.classes || []).map((item) => item.class_name)
+    activeClass.value = classList.value[0] || ''
   } catch {
-    classList.value = ['1班', '2班', '3班', '4班']
-    activeClass.value = '1班'
+    try {
+      const data = await requestJson('/api/classes')
+      classList.value = data.classes || []
+      activeClass.value = data.current || classList.value[0] || ''
+    } catch {
+      classList.value = ['1班', '2班', '3班', '4班']
+      activeClass.value = '1班'
+    }
   }
 })
 
 const currentClassName = computed(() => status.value?.current_class || activeClass.value)
+const navSelected = computed(() => [route.name || 'monitor'])
 
 function handleSelect(cls) {
   activeClass.value = cls
   emit('select-class', cls)
+}
+
+function handleLogout() {
+  requestJson('/api/auth/logout', { method: 'POST' }).catch(() => {})
+  clearAuth()
+  router.push({ name: 'login' })
 }
 </script>
 
@@ -51,6 +70,22 @@ function handleSelect(cls) {
     </div>
 
     <div class="sidebar-section">
+      <a-menu
+        :selected-keys="navSelected"
+        :inline-collapsed="collapsed"
+        mode="inline"
+        theme="dark"
+        class="sidebar-menu compact"
+      >
+        <a-menu-item key="monitor" @click="router.push({ name: 'monitor' })">
+          <template #icon><VideoCameraFilled /></template>
+          <span>实时监控</span>
+        </a-menu-item>
+        <a-menu-item key="history" @click="router.push({ name: 'history' })">
+          <template #icon><HistoryOutlined /></template>
+          <span>历史复盘</span>
+        </a-menu-item>
+      </a-menu>
       <span v-show="!collapsed" class="section-label">监控班级</span>
       <a-menu
         :selected-keys="[currentClassName]"
@@ -68,11 +103,14 @@ function handleSelect(cls) {
     </div>
 
     <div class="sidebar-footer">
-      <div class="status-row" :class="{ connected: isConnected }">
-        <span class="status-dot"></span>
-        <span v-show="!collapsed" class="status-text">
-          {{ isConnected ? '已连接' : '未连接' }}
-        </span>
+      <div class="footer-main">
+        <div class="status-row" :class="{ connected: isConnected }">
+          <span class="status-dot"></span>
+          <span v-show="!collapsed" class="status-text">
+            {{ isConnected ? '已连接' : '未连接' }}
+          </span>
+        </div>
+        <div v-show="!collapsed" class="user-name">{{ currentUser?.real_name || currentUser?.username || '未登录' }}</div>
       </div>
       <a-button
         type="text"
@@ -81,6 +119,9 @@ function handleSelect(cls) {
       >
         <MenuFoldOutlined v-if="!collapsed" />
         <MenuUnfoldOutlined v-else />
+      </a-button>
+      <a-button type="text" class="toggle-btn" title="退出登录" @click="handleLogout">
+        <LogoutOutlined />
       </a-button>
     </div>
   </aside>
@@ -150,6 +191,11 @@ function handleSelect(cls) {
   border-inline-end: none !important;
   overflow-y: auto;
 }
+.sidebar-menu.compact {
+  flex: 0 0 auto;
+  padding-top: 0;
+  border-bottom: 1px solid var(--border-default);
+}
 
 .sidebar-footer {
   display: flex;
@@ -159,6 +205,9 @@ function handleSelect(cls) {
   border-top: 1px solid var(--border-default);
   flex-shrink: 0;
   min-height: 48px;
+}
+.footer-main {
+  min-width: 0;
 }
 
 .status-row {
@@ -181,6 +230,15 @@ function handleSelect(cls) {
   font-size: 12px;
   color: var(--text-muted);
   white-space: nowrap;
+}
+.user-name {
+  margin-top: 4px;
+  max-width: 128px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
 .toggle-btn {

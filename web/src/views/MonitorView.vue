@@ -11,7 +11,7 @@ import {
   SafetyCertificateOutlined,
 } from '@ant-design/icons-vue'
 import { useWebSocket } from '@/composables/useWebSocket'
-import { useApi } from '@/composables/useApi'
+import { getStoredUser, useApi } from '@/composables/useApi'
 import VideoPlayer from '@/components/monitor/VideoPlayer.vue'
 import StatsCard from '@/components/monitor/StatsCard.vue'
 import EventList from '@/components/monitor/EventList.vue'
@@ -19,6 +19,10 @@ import SeatMapModal from '@/components/monitor/SeatMapModal.vue'
 
 const { status, isConnected } = useWebSocket()
 const { requestJson } = useApi()
+
+const props = defineProps({
+  currentClass: { type: String, default: '' },
+})
 
 const starting = ref(false)
 const monitorStarted = ref(false)
@@ -90,11 +94,18 @@ const seats = computed(() => status.value?.seats || [])
 async function startMonitor() {
   starting.value = true
   try {
+    const user = getStoredUser()
+    const headers = {
+      'X-Class-Name': props.currentClass || status.value?.current_class || '',
+      ...(user?.teacher?.id ? { 'X-Teacher-Id': String(user.teacher.id) } : {}),
+      'X-Operator-Name': user?.real_name || user?.username || '',
+      ...(user?.id ? { 'X-Operator-User-Id': String(user.id) } : {}),
+    }
     let result
     try {
-      result = await requestJson('/api/start', { method: 'POST' })
+      result = await requestJson('/api/start', { method: 'POST', headers })
     } catch {
-      result = await requestJson('/api/monitor/start', { method: 'POST' })
+      result = await requestJson('/api/monitor/start', { method: 'POST', headers })
     }
     monitorStarted.value = true
     message.success(result?.message || '监控已启动')
