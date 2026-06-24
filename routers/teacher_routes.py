@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, Header, HTTPException
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from database import get_db
 from dependencies import get_current_context, is_admin, parse_header_int
-from models import EduClass, EduSubject, EduTeacherClass, MonitorBehaviorEvent, MonitorSession, MonitorTeachingReview
+from models import EduClass, EduSubject, EduTeacher, EduTeacherClass, MonitorBehaviorEvent, MonitorEventFrame, MonitorSession, MonitorTeachingReview
 
 
 router = APIRouter(prefix = "/api/teacher", tags = ["teacher"])
@@ -36,6 +38,35 @@ def _ensure_session_access(db, context, session_id):
 	if allowed is not None and session.class_id not in allowed:
 		raise HTTPException(status_code = 403, detail = "无权访问该班级监控记录")
 	return session
+
+
+def _ensure_review_teacher(db, context, session, teacher_id = None):
+	if is_admin(context):
+		if teacher_id:
+			teacher = db.query(EduTeacher).filter(EduTeacher.id == teacher_id).first()
+			if teacher:
+				return teacher
+		teacher = context.get("teacher")
+		if teacher:
+			return teacher
+		raise HTTPException(status_code = 400, detail = "管理员提交复盘时需要提供 X-Teacher-Id")
+
+	teacher = context.get("teacher")
+	if not teacher:
+		raise HTTPException(status_code = 403, detail = "当前账号未绑定教师档案")
+	scope = (
+		db.query(EduTeacherClass)
+		.filter(
+			EduTeacherClass.teacher_id == teacher.id,
+			EduTeacherClass.class_id == session.class_id,
+			EduTeacherClass.enabled == 1,
+			EduTeacherClass.can_review == 1,
+		)
+		.first()
+	)
+	if not scope:
+		raise HTTPException(status_code = 403, detail = "无权复盘该班级监控记录")
+	return teacher
 
 
 @router.get("/classes")
@@ -177,6 +208,54 @@ def session_events(
 	}
 
 
+@router.get("/event/detail")
+def event_detail(
+	x_event_id = Header(default = None, alias = "X-Event-Id"),
+	context = Depends(get_current_context),
+	db: Session = Depends(get_db),
+):
+	event_id = parse_header_int(x_event_id, "X-Event-Id", required = True)
+	event = db.query(MonitorBehaviorEvent).filter(MonitorBehaviorEvent.id == event_id).first()
+	if not event:
+		raise HTTPException(status_code = 404, detail = "事件不存在")
+	session = _ensure_session_access(db, context, event.session_id)
+	frames = db.query(MonitorEventFrame).filter(MonitorEventFrame.event_id == event.id).order_by(MonitorEventFrame.frame_index.asc()).all()
+	return {
+		"ok": True,
+		"event": {
+			"id": event.id,
+			"event_id": event.event_uid,
+			"session_id": event.session_id,
+			"class_name": session.class_name,
+			"seat": event.seat_code,
+			"level": event.level,
+			"status": event.status,
+			"label": event.label,
+			"reason": event.reason,
+			"source": event.source,
+			"analysis_source": event.analysis_source,
+			"alert_start_time": event.event_time,
+			"list_image_url": event.image_url,
+			"box": [float(event.box_x1 or 0), float(event.box_y1 or 0), float(event.box_x2 or 0), float(event.box_y2 or 0)],
+			"frames": [
+				{
+					"frame_index": frame.frame_index,
+					"time": frame.frame_time,
+					"focus_image_url": frame.focus_image_url,
+					"seat": {
+						"seat_name": frame.seat_code,
+						"status": frame.status,
+						"status_text": frame.status_text,
+						"ratio": float(frame.ratio) if frame.ratio is not None else None,
+						"box_conf": float(frame.box_conf) if frame.box_conf is not None else None,
+					},
+				}
+				for frame in frames
+			],
+		},
+	}
+
+
 @router.get("/session/review")
 def get_review(
 	x_session_id = Header(default = None, alias = "X-Session-Id"),
@@ -193,6 +272,51 @@ def get_review(
 		"ok": True,
 		"review": None if not row else {
 			"id": row.id,
+			"review_status": row.review_status,
+			"teaching_effect_score": float(row.teaching_effect_score) if row.teaching_effect_score is not None else None,
+			"focus_summary": row.focus_summary,
+			"problem_summary": row.problem_summary,
+			"improvement_plan": row.improvement_plan,
+			"reviewed_at": row.reviewed_at,
+		},
+	}
+
+
+@router.post("/session/review")
+async def save_review(
+	request: Request,
+	x_session_id = Header(default = None, alias = "X-Session-Id"),
+	x_teacher_id = Header(default = None, alias = "X-Teacher-Id"),
+	context = Depends(get_current_context),
+	db: Session = Depends(get_db),
+):
+	session_id = parse_header_int(x_session_id, "X-Session-Id", required = True)
+	teacher_id = parse_header_int(x_teacher_id, "X-Teacher-Id")
+	session = _ensure_session_access(db, context, session_id)
+	teacher = _ensure_review_teacher(db, context, session, teacher_id)
+	body = await request.json()
+	score = (body or {}).get("teaching_effect_score")
+	row = (
+		db.query(MonitorTeachingReview)
+		.filter(MonitorTeachingReview.session_id == session.id, MonitorTeachingReview.teacher_id == teacher.id)
+		.first()
+	)
+	if not row:
+		row = MonitorTeachingReview(session_id = session.id, teacher_id = teacher.id)
+		db.add(row)
+	row.review_status = "REVIEWED"
+	row.teaching_effect_score = score
+	row.focus_summary = (body or {}).get("focus_summary", "")
+	row.problem_summary = (body or {}).get("problem_summary", "")
+	row.improvement_plan = (body or {}).get("improvement_plan", "")
+	row.reviewed_at = datetime.utcnow()
+	db.commit()
+	return {
+		"ok": True,
+		"review": {
+			"id": row.id,
+			"session_id": row.session_id,
+			"teacher_id": row.teacher_id,
 			"review_status": row.review_status,
 			"teaching_effect_score": float(row.teaching_effect_score) if row.teaching_effect_score is not None else None,
 			"focus_summary": row.focus_summary,

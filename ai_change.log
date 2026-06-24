@@ -47,3 +47,11 @@
   - `ai_change.log`：追加本阶段变更记录。
 - 验证方式：已执行 `python -m py_compile main.py monitor_service.py video_stream_util.py database.py models.py`，结果通过；已执行 `models` 和数据库会话导入复核，结果通过；尝试导入 `monitor_service` 时当前环境缺少 `cv2`，需安装完整 `requirements.txt` 后再做运行态导入；已执行 diff 复核。
 - 备注：图片和视频仍保存为文件路径/URL，不写入 MySQL 二进制。
+
+- 日期：2026-06-24
+- 修改功能：补齐教师事件详情和教学复盘提交接口
+- 修改文件：
+  - `routers/teacher_routes.py`：新增 `GET /api/teacher/event/detail` 和 `POST /api/teacher/session/review`，继续使用请求头传入事件和会话 ID。
+  - `ai_change.log`：追加本阶段变更记录。
+- 验证方式：已执行 `python -m py_compile routers\teacher_routes.py dependencies.py models.py`，结果通过；已执行教师路由导入复核，确认 8 个路由方法可加载；已执行 diff 复核。
+- 备注：复盘长文本通过 JSON body 提交；管理员代提交复盘时需通过 `X-Teacher-Id` 指定教师。
