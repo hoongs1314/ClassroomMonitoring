@@ -8,14 +8,19 @@ from config import settings
 
 
 pwd_context = CryptContext(schemes = ["bcrypt"], deprecated = "auto")
+MAX_BCRYPT_PASSWORD_BYTES = 72
 
 
 def hash_password(password):
+	if len(password.encode("utf-8")) > MAX_BCRYPT_PASSWORD_BYTES:
+		raise ValueError("密码 UTF-8 编码后不能超过 72 字节，请缩短 ADMIN_PASSWORD 或登录密码")
 	return pwd_context.hash(password)
 
 
 def verify_password(plain_password, password_hash):
 	if not plain_password or not password_hash:
+		return False
+	if len(plain_password.encode("utf-8")) > MAX_BCRYPT_PASSWORD_BYTES:
 		return False
 	return pwd_context.verify(plain_password, password_hash)
 

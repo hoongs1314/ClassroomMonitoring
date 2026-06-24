@@ -96,3 +96,12 @@
   - `ai_change.log`：追加本次变更记录。
 - 验证方式：已执行 `python -m py_compile bootstrap.py config.py database.py models.py auth_utils.py dependencies.py routers\auth_routes.py routers\teacher_routes.py main.py monitor_service.py video_stream_util.py`，结果通过；已执行导入复核，确认 ORM 15 张表、认证 4 个路由、教师 8 个路由可加载；已执行 `docker compose config --quiet`，结果通过；已执行 `npm run build`，结果通过，仍有 Vite chunk 体积警告；已执行 diff 复核。
 - 备注：未设置 `ADMIN_PASSWORD` 时不会创建默认弱密码账号。
+
+- 日期：2026-06-24
+- 修改功能：修复 passlib 与 bcrypt 5.x 不兼容导致启动失败
+- 修改文件：
+  - `requirements.txt`：新增 `bcrypt<4.1` 版本约束，避免安装到 passlib 1.7.4 不兼容或有兼容警告的 bcrypt 4.1+/5.x。
+  - `auth_utils.py`：新增 bcrypt 密码 72 字节限制校验，超长密码给出明确错误或登录失败。
+  - `ai_change.log`：追加本次运行错误修复记录。
+- 验证方式：已执行 `python -m pip install 'bcrypt<4.1'`，当前环境 bcrypt 版本为 4.0.1；已执行 `python -m py_compile auth_utils.py bootstrap.py`，结果通过；已执行密码哈希、校验和 72 字节长度保护测试，结果通过；已执行 diff 复核。
+- 备注：如果 `ADMIN_PASSWORD` 使用中文或过长随机串，需要确保 UTF-8 编码后不超过 72 字节。
