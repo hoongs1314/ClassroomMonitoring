@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+from database import init_database
 from monitor_service import (
 	EVENT_CROP_DIR,
 	detection_analysis_loop,
@@ -20,6 +21,8 @@ from monitor_service import (
 	switch_class,
 	websocket_clients,
 )
+from routers.auth_routes import router as auth_router
+from routers.teacher_routes import router as teacher_router
 
 logger = logging.getLogger("monitor.service")
 # Worker数量
@@ -69,6 +72,7 @@ async def broadcast_status_loop():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
 	"""应用生命周期函数"""
+	init_database()
 	start_background_threads()
 	broadcast_task = asyncio.create_task(broadcast_status_loop())
 	yield
@@ -88,6 +92,8 @@ app.add_middleware(
 	allow_headers = ["*"],
 )
 app.mount("/event_crops", StaticFiles(directory = str(EVENT_CROP_DIR)), name = "event_crops")
+app.include_router(auth_router)
+app.include_router(teacher_router)
 
 
 @app.websocket("/ws")

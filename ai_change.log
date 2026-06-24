@@ -26,3 +26,15 @@
   - `ai_change.log`：追加本阶段变更记录。
 - 验证方式：已执行 `python -m py_compile config.py database.py models.py auth_utils.py main.py monitor_service.py video_stream_util.py`，结果通过；已执行 `git diff` 查看变更。
 - 备注：本阶段只新增基础能力，尚未改变现有接口行为，也未连接真实 MySQL 执行导入。
+
+- 日期：2026-06-24
+- 修改功能：新增登录认证和教师授权查询接口
+- 修改文件：
+  - `dependencies.py`：新增 Bearer Token 解析、当前用户上下文、管理员校验和请求头整数参数解析。
+  - `routers/auth_routes.py`：新增登录、登出、刷新 token、当前用户信息接口。
+  - `routers/teacher_routes.py`：新增教师授权班级、学科、历史监控记录、监控详情、事件列表和复盘查询接口，资源 ID 通过请求头传入。
+  - `routers/__init__.py`：新增路由包。
+  - `main.py`：注册认证和教师路由，并在生命周期启动时接入可选数据库初始化。
+  - `ai_change.log`：追加本阶段变更记录。
+- 验证方式：已执行 `python -m py_compile dependencies.py routers\auth_routes.py routers\teacher_routes.py config.py database.py models.py auth_utils.py main.py monitor_service.py video_stream_util.py`，结果通过；已执行导入级复核，确认 ORM 15 张表、认证 4 个路由、教师 6 个路由可加载；已执行 `git diff` 查看变更。
+- 备注：登录密码仍通过 JSON body 提交；资源 ID、分页和筛选条件通过请求头传入，未使用路径 ID。
