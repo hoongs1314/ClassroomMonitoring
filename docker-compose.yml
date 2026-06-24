@@ -1,0 +1,61 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: classroom-monitoring-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-classroom_monitoring}
+      MYSQL_USER: ${MYSQL_USER:-classroom}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-classroom_password}
+      TZ: Asia/Shanghai
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./db/001_init_mysql.sql:/docker-entrypoint-initdb.d/001_init_mysql.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root_password}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: classroom-monitoring-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-classroom_monitoring}
+      MYSQL_USER: ${MYSQL_USER:-classroom}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-classroom_password}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-please-change-this-secret}
+      AUTO_CREATE_TABLES: "false"
+      ALIYUN_API_KEY: ${ALIYUN_API_KEY:-}
+      TZ: Asia/Shanghai
+    ports:
+      - "${BACKEND_PORT:-8997}:8997"
+    volumes:
+      - ./inputs:/app/inputs
+      - ./models:/app/models
+      - ./outputs:/app/outputs
+
+  frontend:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    container_name: classroom-monitoring-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+
+volumes:
+  mysql_data:
