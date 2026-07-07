@@ -3,6 +3,7 @@
 /yolo26x-pose_openvino_model/
 __pycache__/
 *.pt
+.env
 .idea
 .vscode
 .DS_Store

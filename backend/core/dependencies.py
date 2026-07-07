@@ -3,9 +3,9 @@ from datetime import datetime
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
-from auth_utils import decode_token
-from database import get_db
-from models import EduTeacher, SysAuthToken, SysRole, SysUser, SysUserRole
+from core.auth_utils import decode_token
+from core.database import get_db
+from domain.models import EduTeacher, SysAuthToken, SysRole, SysUser, SysUserRole
 
 
 def parse_header_int(value, name, required = False):
@@ -19,13 +19,17 @@ def parse_header_int(value, name, required = False):
 		raise HTTPException(status_code = 400, detail = f"请求头 {name} 必须是整数")
 
 
-def get_bearer_token(authorization = Header(default = None, alias = "Authorization")):
+def parse_bearer_token(authorization):
 	if not authorization:
 		raise HTTPException(status_code = 401, detail = "缺少 Authorization 请求头")
 	parts = authorization.split(" ", 1)
 	if len(parts) != 2 or parts[0].lower() != "bearer" or not parts[1].strip():
 		raise HTTPException(status_code = 401, detail = "Authorization 格式应为 Bearer token")
 	return parts[1].strip()
+
+
+def get_bearer_token(authorization = Header(default = None, alias = "Authorization")):
+	return parse_bearer_token(authorization)
 
 
 def _load_roles(db, user_id):
@@ -38,10 +42,7 @@ def _load_roles(db, user_id):
 	return [row[0] for row in rows]
 
 
-def get_current_context(
-	db: Session = Depends(get_db),
-	token = Depends(get_bearer_token),
-):
+def load_context_from_token(db, token):
 	payload = decode_token(token)
 	if not payload or payload.get("type") != "access":
 		raise HTTPException(status_code = 401, detail = "登录状态无效或已过期")
@@ -60,6 +61,13 @@ def get_current_context(
 	roles = _load_roles(db, user.id)
 	teacher = db.query(EduTeacher).filter(EduTeacher.user_id == user.id).first()
 	return { "user": user, "roles": roles, "teacher": teacher, "payload": payload, "token": token }
+
+
+def get_current_context(
+	db: Session = Depends(get_db),
+	token = Depends(get_bearer_token),
+):
+	return load_context_from_token(db, token)
 
 
 def require_admin(context = Depends(get_current_context)):

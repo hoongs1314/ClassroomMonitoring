@@ -23,7 +23,7 @@ services:
   backend:
     build:
       context: .
-      dockerfile: Dockerfile.backend
+      dockerfile: backend/Dockerfile
     container_name: classroom-monitoring-backend
     restart: unless-stopped
     depends_on:

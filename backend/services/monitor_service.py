@@ -17,8 +17,9 @@ from sahi import AutoDetectionModel
 from sahi.predict import get_sliced_prediction
 from scipy.optimize import linear_sum_assignment
 
-from database import db_session
-from models import (
+from core.database import db_session
+from core.paths import REPO_ROOT
+from domain.models import (
 	EduClass,
 	EduSubject,
 	EduTeacher,
@@ -28,10 +29,11 @@ from models import (
 	MonitorSessionSeat,
 	MonitorVlmReview,
 )
-from video_stream_util import MockMonitorStream
+from services.video_stream_util import MockMonitorStream
 
 # 当前目录绝对路径
-ROOT_PATH = Path(__file__).resolve().parent
+ROOT_PATH = REPO_ROOT
+PROMPT_PATH = ROOT_PATH / "backend" / "prompts" / "vlm_system_prompt.md"
 # 事件截图输出
 EVENT_CROP_DIR = ROOT_PATH / "outputs" / "event_crops"
 # 创建输出目录（创建父级、存在不报错）
@@ -674,7 +676,7 @@ def vlm_worker(worker_id):
 		api_key = api_key,
 		base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1",
 	)
-	sys_content = (ROOT_PATH / "vlm_system_prompt.md").read_text(encoding = "utf-8")
+	sys_content = PROMPT_PATH.read_text(encoding = "utf-8")
 	logger.info("[VLM] w%d 初始化", worker_id)
 
 	while True:

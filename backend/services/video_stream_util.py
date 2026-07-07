@@ -3,9 +3,11 @@ import cv2
 import threading
 from pathlib import Path
 
+from core.paths import REPO_ROOT
+
 logger = logging.getLogger("monitor.video")
 
-ROOT_PATH = Path(__file__).resolve().parent
+ROOT_PATH = REPO_ROOT
 
 
 class MockMonitorStream:

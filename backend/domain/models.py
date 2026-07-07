@@ -4,7 +4,7 @@ from sqlalchemy.dialects.mysql import JSON, LONGTEXT, TINYINT
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
-from database import Base
+from core.database import Base
 
 
 def uint_bigint():

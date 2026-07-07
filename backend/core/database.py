@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-from config import settings
+from core.config import settings
 
 
 engine = create_engine(
@@ -42,6 +42,6 @@ def init_database():
 	"""仅在显式开启 AUTO_CREATE_TABLES 时自动建表；生产环境建议执行 db SQL 文件。"""
 	if not settings.auto_create_tables:
 		return
-	import models  # noqa: F401
+	import domain.models  # noqa: F401
 
 	Base.metadata.create_all(bind = engine)

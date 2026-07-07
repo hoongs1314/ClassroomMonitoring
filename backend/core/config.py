@@ -1,11 +1,11 @@
 import os
 from dataclasses import dataclass
-from pathlib import Path
 
 from dotenv import load_dotenv
 
+from core.paths import REPO_ROOT
 
-ROOT_PATH = Path(__file__).resolve().parent
+ROOT_PATH = REPO_ROOT
 load_dotenv(ROOT_PATH / ".env")
 
 

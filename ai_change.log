@@ -134,3 +134,25 @@
   - `ai_change.log`：追加本次测试数据生成和验证记录。
 - 验证方式：已执行 SQL 安全检索，确认没有 DROP、TRUNCATE、DELETE，仅包含带 WHERE 条件的班主任回填 UPDATE；已通过当前 `.env` 的 MySQL 配置执行 `db/002_seed_teacher_test_data.sql`，成功执行 13 条语句；已查询验证 20 个账号、20 个教师档案、20 个教师角色、4 个操作员角色、20 条班级权限绑定，4 个班级各绑定 5 名教师且班主任已设置；已通过后端接口验证 `teacher001` 和 `teacher007` 登录、`/api/auth/me`、授权班级、会话列表、会话详情、跨班 403 拦截、复盘提交和复盘读取均正常。
 - 备注：20 个测试教师账号统一默认密码为 `Teacher@123456`，仅用于本地或测试环境；接口验证过程中已为 1 班已有监控会话写入一条教师复盘记录。
+
+- 日期：2026-07-07
+- 修改功能：补强实时监控接口鉴权并忽略本地环境变量文件
+- 修改文件：
+  - `.gitignore`：新增 `.env` 忽略规则，降低本地密钥误提交风险。
+  - `dependencies.py`：抽出 Bearer token 解析和 token 上下文加载函数，供 Header 与 query token 场景复用。
+  - `main.py`：为 WebSocket、视频流、最新帧、启动/停止监控、班级列表和切换班级接口增加登录鉴权；按教师班级权限校验实时查看和启动/切换/停止操作。
+  - `web/src/views/MonitorView.vue`：实时视频流地址追加 access token 查询参数，兼容浏览器图片流请求无法设置 Authorization Header 的限制。
+- 验证方式：已执行 `python -m py_compile dependencies.py main.py`，结果通过；已执行 `npm run build`，结果通过，仍有既有 Vite chunk 体积警告和 npm 用户配置警告；已用 FastAPI TestClient 验证未带 token 访问 `/api/classes`、`/api/latest_frame`、`/api/start`、`/api/stop`、`/api/switch_class`、`/video_feed` 均返回 401；已执行 diff 复核。
+- 备注：视频流 query token 可能出现在浏览器或代理访问日志中，后续建议升级为短期媒体票据或同源受控代理；本次未改 CORS、静态截图访问和多教室任务架构。
+
+- 日期：2026-07-07
+- 修改功能：按职能整理项目目录结构
+- 修改文件：
+  - `backend/`：新增后端源码目录，将入口、配置、鉴权、数据库、领域模型、服务、路由、提示词、依赖文件和后端 Dockerfile 按职责归类。
+  - `backend/core/paths.py`：新增项目根目录定位，保证后端移动后仍从根目录读取 `.env`、`inputs`、`models` 和 `outputs`。
+  - `backend/core/*.py`、`backend/domain/models.py`、`backend/services/*.py`、`backend/routers/*.py`：更新移动后的模块导入路径。
+  - `backend/Dockerfile`、`docker-compose.yml`：更新后端构建路径和启动入口。
+  - `readme.md`：更新核心目录说明、后端启动命令和端口说明。
+  - `ai_change.log`：追加本次目录整理记录。
+- 验证方式：已执行移动后端 Python 文件 `py_compile`，结果通过；已执行 `PYTHONPATH=backend` 应用导入检查，FastAPI 路由可加载；已执行 `npm run build`，结果通过，仍有既有 Vite chunk 体积警告和 npm 用户配置警告；已执行 `docker compose config --quiet`，结果通过；已用 FastAPI TestClient 验证未带 token 访问实时监控相关接口仍返回 401；已执行 diff 复核。
+- 备注：根目录旧 `routers/` 目录只剩被忽略的 `__pycache__`，未使用递归删除命令清理；`.idea` 既有改动未处理。

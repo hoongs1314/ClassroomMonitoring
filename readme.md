@@ -7,15 +7,21 @@
 - VLM分析，语义化内容输出
 
 ## 核心文件
-- main.py
-  - FastAPI 服务入口 (端口8000)
-- monitor_service.py
+- backend/main.py
+  - FastAPI 服务入口 (端口8997)
+- backend/services/monitor_service.py
   - 检测链路核心：SAHI分片
   - detect座位检测
   - Pose姿态检测
   - VLM分析
-- pose_engine.py
-  - 核心姿态分析
+- backend/core
+  - 配置、数据库、鉴权依赖和启动引导
+- backend/domain
+  - SQLAlchemy 数据模型
+- backend/routers
+  - 认证、教师端历史记录和复盘接口
+- backend/prompts
+  - VLM 分析提示词
 
 ## 本地启动
 
@@ -24,9 +30,9 @@
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 $env:ALIYUN_API_KEY="你的阿里云Key"
-python main.py
+python backend/main.py
 ```
 
 前端：

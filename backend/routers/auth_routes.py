@@ -4,10 +4,10 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from auth_utils import create_access_token, create_refresh_token, decode_token, verify_password
-from database import get_db
-from dependencies import get_current_context
-from models import EduTeacher, EduTeacherClass, SysAuthToken, SysLoginLog, SysRole, SysUser, SysUserRole
+from core.auth_utils import create_access_token, create_refresh_token, decode_token, verify_password
+from core.database import get_db
+from core.dependencies import get_current_context
+from domain.models import EduTeacher, EduTeacherClass, SysAuthToken, SysLoginLog, SysRole, SysUser, SysUserRole
 
 
 router = APIRouter(prefix = "/api/auth", tags = ["auth"])

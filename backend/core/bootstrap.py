@@ -1,9 +1,9 @@
 import logging
 
-from auth_utils import hash_password
-from config import settings
-from database import db_session
-from models import SysRole, SysUser, SysUserRole
+from core.auth_utils import hash_password
+from core.config import settings
+from core.database import db_session
+from domain.models import SysRole, SysUser, SysUserRole
 
 
 logger = logging.getLogger("monitor.bootstrap")

@@ -9,16 +9,14 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+COPY backend/requirements.txt ./backend/requirements.txt
+RUN pip install --no-cache-dir -r backend/requirements.txt
 
-COPY *.py ./
-COPY routers ./routers
-COPY vlm_system_prompt.md ./
+COPY backend ./backend
 COPY db ./db
 
 RUN mkdir -p inputs models outputs/event_crops
 
 EXPOSE 8997
 
-CMD ["python", "main.py"]
+CMD ["python", "backend/main.py"]

@@ -11,7 +11,7 @@ import {
   SafetyCertificateOutlined,
 } from '@ant-design/icons-vue'
 import { useWebSocket } from '@/composables/useWebSocket'
-import { getStoredUser, useApi } from '@/composables/useApi'
+import { getAccessToken, getStoredUser, useApi } from '@/composables/useApi'
 import VideoPlayer from '@/components/monitor/VideoPlayer.vue'
 import StatsCard from '@/components/monitor/StatsCard.vue'
 import EventList from '@/components/monitor/EventList.vue'
@@ -84,6 +84,11 @@ const phaseType = computed(() => {
 })
 
 const seatMapUrl = computed(() => status.value?.seat_map_url || '')
+
+const videoFeedUrl = computed(() => {
+  const token = getAccessToken()
+  return token ? `/video_feed?token=${encodeURIComponent(token)}` : '/video_feed'
+})
 
 const imgSize = computed(() => ({
   w: status.value?.img_w || 1920,
@@ -185,7 +190,7 @@ function openSeatMap() {
 
         <VideoPlayer
           mode="mjpeg"
-          mjpeg-url="/video_feed"
+          :mjpeg-url="videoFeedUrl"
           :live="monitorStarted"
           :img-w="imgSize.w"
           :img-h="imgSize.h"

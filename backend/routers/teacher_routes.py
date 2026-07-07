@@ -3,9 +3,9 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from database import get_db
-from dependencies import get_current_context, is_admin, parse_header_int
-from models import EduClass, EduSubject, EduTeacher, EduTeacherClass, MonitorBehaviorEvent, MonitorEventFrame, MonitorSession, MonitorTeachingReview
+from core.database import get_db
+from core.dependencies import get_current_context, is_admin, parse_header_int
+from domain.models import EduClass, EduSubject, EduTeacher, EduTeacherClass, MonitorBehaviorEvent, MonitorEventFrame, MonitorSession, MonitorTeachingReview
 
 
 router = APIRouter(prefix = "/api/teacher", tags = ["teacher"])
