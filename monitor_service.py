@@ -53,6 +53,7 @@ CLASS_CODE_MAP = {
 	"3班": "CLASS_3",
 	"4班": "CLASS_4",
 }
+CLASS_NAME_BY_CODE = {code: name for name, code in CLASS_CODE_MAP.items()}
 
 # 同一座位 VLM 送检间隔（秒）
 VLM_INVOKE_SECONDS = 10
@@ -219,9 +220,17 @@ def _resolve_class(db, class_name):
 	return query.filter(EduClass.class_name == class_name).first()
 
 
-def start_monitoring(class_name = None, teacher_id = None, subject_id = None, lesson_title = None, operator_user_id = None, operator_name = None):
+def _resolve_runtime_class(class_name = None, class_code = None):
+	if class_code and class_code in CLASS_NAME_BY_CODE:
+		return CLASS_NAME_BY_CODE[class_code]
+	if class_name:
+		return class_name
+	return state["current_class"]
+
+
+def start_monitoring(class_name = None, class_code = None, teacher_id = None, subject_id = None, lesson_title = None, operator_user_id = None, operator_name = None):
 	"""启动监控并尝试创建持久化会话；数据库异常不阻断实时监控。"""
-	target_class = class_name or state["current_class"]
+	target_class = _resolve_runtime_class(class_name, class_code)
 	if target_class != state["current_class"] and target_class in state["class_list"]:
 		switch_class(target_class)
 	state["is_running"] = True

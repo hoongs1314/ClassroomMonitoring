@@ -6,7 +6,7 @@ const props = defineProps({
   value: { type: Number, default: 0 },
   type: { type: String, default: 'primary' },
   trend: { type: Number, default: null },
-  icon: { type: Object, default: null },
+  icon: { type: [Object, Function], default: null },
   clickable: { type: Boolean, default: false },
 })
 

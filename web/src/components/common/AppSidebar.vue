@@ -28,18 +28,25 @@ const classList = ref([])
 const activeClass = ref('')
 const currentUser = ref(getStoredUser())
 
+function normalizeClass(item) {
+  if (typeof item === 'string') {
+    return { class_name: item, class_code: '' }
+  }
+  return item || { class_name: '', class_code: '' }
+}
+
 onMounted(async () => {
   try {
     const data = await requestJson('/api/teacher/classes')
-    classList.value = (data.classes || []).map((item) => item.class_name)
-    activeClass.value = classList.value[0] || ''
+    classList.value = (data.classes || []).map(normalizeClass)
+    activeClass.value = classList.value[0]?.class_name || ''
   } catch {
     try {
       const data = await requestJson('/api/classes')
-      classList.value = data.classes || []
-      activeClass.value = data.current || classList.value[0] || ''
+      classList.value = (data.classes || []).map(normalizeClass)
+      activeClass.value = data.current || classList.value[0]?.class_name || ''
     } catch {
-      classList.value = ['1班', '2班', '3班', '4班']
+      classList.value = ['1班', '2班', '3班', '4班'].map(normalizeClass)
       activeClass.value = '1班'
     }
   }
@@ -49,8 +56,9 @@ const currentClassName = computed(() => status.value?.current_class || activeCla
 const navSelected = computed(() => [route.name || 'monitor'])
 
 function handleSelect(cls) {
-  activeClass.value = cls
-  emit('select-class', cls)
+  const selected = classList.value.find((item) => item.class_name === cls) || normalizeClass(cls)
+  activeClass.value = selected.class_name
+  emit('select-class', selected.class_name, selected)
 }
 
 function handleLogout() {
@@ -95,9 +103,9 @@ function handleLogout() {
         class="sidebar-menu"
         @click="({ key }) => handleSelect(key)"
       >
-        <a-menu-item v-for="cls in classList" :key="cls">
+        <a-menu-item v-for="cls in classList" :key="cls.class_name">
           <template #icon><TeamOutlined /></template>
-          <span>{{ cls }}</span>
+          <span>{{ cls.class_name }}</span>
         </a-menu-item>
       </a-menu>
     </div>

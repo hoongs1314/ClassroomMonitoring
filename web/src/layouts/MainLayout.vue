@@ -7,9 +7,11 @@ const { requestJson } = useApi()
 
 const sidebarCollapsed = ref(false)
 const currentClass = ref('1班')
+const currentClassCode = ref('')
 
-async function handleSelectClass(cls) {
+async function handleSelectClass(cls, classInfo = {}) {
   currentClass.value = cls
+  currentClassCode.value = classInfo.class_code || ''
   try {
     await requestJson('/api/switch_class', {
       method: 'POST',
@@ -30,7 +32,7 @@ async function handleSelectClass(cls) {
       @select-class="handleSelectClass"
     />
     <main class="app-content">
-      <router-view :current-class="currentClass" />
+      <router-view :current-class="currentClass" :current-class-code="currentClassCode" />
     </main>
   </div>
 </template>

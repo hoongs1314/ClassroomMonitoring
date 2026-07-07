@@ -22,6 +22,7 @@ const { requestJson } = useApi()
 
 const props = defineProps({
   currentClass: { type: String, default: '' },
+  currentClassCode: { type: String, default: '' },
 })
 
 const starting = ref(false)
@@ -91,14 +92,20 @@ const imgSize = computed(() => ({
 
 const seats = computed(() => status.value?.seats || [])
 
+function encodeHeaderText(value) {
+  return encodeURIComponent(value || '')
+}
+
 async function startMonitor() {
   starting.value = true
   try {
     const user = getStoredUser()
+    const className = props.currentClass || status.value?.current_class || ''
     const headers = {
-      'X-Class-Name': props.currentClass || status.value?.current_class || '',
+      ...(props.currentClassCode ? { 'X-Class-Code': props.currentClassCode } : {}),
+      ...(!props.currentClassCode && className ? { 'X-Class-Name': encodeHeaderText(className) } : {}),
       ...(user?.teacher?.id ? { 'X-Teacher-Id': String(user.teacher.id) } : {}),
-      'X-Operator-Name': user?.real_name || user?.username || '',
+      'X-Operator-Name': encodeHeaderText(user?.real_name || user?.username || ''),
       ...(user?.id ? { 'X-Operator-User-Id': String(user.id) } : {}),
     }
     let result

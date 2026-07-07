@@ -6,6 +6,7 @@ import time
 import cv2
 
 from contextlib import asynccontextmanager, suppress
+from urllib.parse import unquote
 from fastapi import FastAPI, Header, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
@@ -45,6 +46,13 @@ def parse_optional_header_int(value, header_name):
 	except ValueError:
 		logger.warning("[App] 请求头%s不是整数: %s", header_name, value)
 		return None
+
+
+def decode_header_text(value):
+	"""解码 URL 编码后的文本请求头，避免中文直接进入 HTTP Header。"""
+	if value in (None, ""):
+		return value
+	return unquote(value)
 
 
 def build_status_payload():
@@ -128,7 +136,7 @@ async def websocket_endpoint(websocket: WebSocket):
 		logger.warning("[WS] 客户端异常断开: %s", exc)
 
 
-def iter_mjpeg_frames():
+def lastest_frames():
 	"""持续输出当前监控帧"""
 	while True:
 		if state["is_running"] and state["frame"] is not None:
@@ -142,7 +150,7 @@ def iter_mjpeg_frames():
 def video_feed_endpoint():
 	"""视频流"""
 	logger.info("[App] 视频流客户端连接")
-	return StreamingResponse(iter_mjpeg_frames(), media_type = "multipart/x-mixed-replace; boundary=frame")
+	return StreamingResponse(lastest_frames(), media_type = "multipart/x-mixed-replace; boundary=frame")
 
 
 @app.get("/api/latest_frame")
@@ -162,6 +170,7 @@ def api_latest_frame():
 @app.post("/api/start")
 def api_start_monitoring(
 	x_class_name = Header(default = None, alias = "X-Class-Name"),
+	x_class_code = Header(default = None, alias = "X-Class-Code"),
 	x_teacher_id = Header(default = None, alias = "X-Teacher-Id"),
 	x_subject_id = Header(default = None, alias = "X-Subject-Id"),
 	x_lesson_title = Header(default = None, alias = "X-Lesson-Title"),
@@ -170,12 +179,13 @@ def api_start_monitoring(
 ):
 	"""启动监控"""
 	result = start_monitoring(
-		class_name = x_class_name,
+		class_name = decode_header_text(x_class_name),
+		class_code = x_class_code,
 		teacher_id = parse_optional_header_int(x_teacher_id, "X-Teacher-Id"),
 		subject_id = parse_optional_header_int(x_subject_id, "X-Subject-Id"),
-		lesson_title = x_lesson_title,
+		lesson_title = decode_header_text(x_lesson_title),
 		operator_user_id = parse_optional_header_int(x_operator_user_id, "X-Operator-User-Id"),
-		operator_name = x_operator_name,
+		operator_name = decode_header_text(x_operator_name),
 	)
 	logger.info("[App] 启动监控: %s", state["current_class"])
 	return result
