@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { useApi } from '@/composables/useApi'
+import { getAccessToken, useApi } from '@/composables/useApi'
 
 const props = defineProps({
   open: Boolean,
@@ -25,8 +25,15 @@ const statusMap = {
 const getS = (s) => statusMap[s] || statusMap.NORMAL
 
 const frameUrl = computed(() => {
-  const token = [props.currentClass, props.open, props.imgW, props.imgH, props.seats.length].join('-')
-  return mediaUrl('/api/latest_frame') + '?class=' + encodeURIComponent(props.currentClass) + '&v=' + encodeURIComponent(token) + '&t=' + Date.now()
+  const cacheKey = [props.currentClass, props.open, props.imgW, props.imgH, props.seats.length].join('-')
+  const params = new URLSearchParams({
+    class: props.currentClass,
+    v: cacheKey,
+    t: String(Date.now()),
+  })
+  const accessToken = getAccessToken()
+  if (accessToken) params.set('token', accessToken)
+  return `${mediaUrl('/api/latest_frame')}?${params.toString()}`
 })
 
 function boxStyle(box) {

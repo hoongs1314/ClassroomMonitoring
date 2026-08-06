@@ -1,4 +1,6 @@
-const API_BASE = window.MONITOR_API_BASE || 'http://localhost:8997'
+import { resolveApiBase } from './apiBase'
+
+const API_BASE = resolveApiBase(window.MONITOR_API_BASE, import.meta.env.DEV)
 const ACCESS_TOKEN_KEY = 'monitor_access_token'
 const REFRESH_TOKEN_KEY = 'monitor_refresh_token'
 const USER_KEY = 'monitor_user'

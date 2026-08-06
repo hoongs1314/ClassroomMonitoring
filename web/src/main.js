@@ -4,6 +4,7 @@ import {
   Button, Modal, Spin, Tag, ConfigProvider, Layout, Menu,
   Input, Select, DatePicker, Table, Badge, Card, Tooltip,
   Drawer, Switch, Slider, Divider, Radio, Empty, InputNumber,
+  Tabs, Space,
 } from 'ant-design-vue'
 import router from './router'
 
@@ -36,5 +37,7 @@ app.use(Divider)
 app.use(Radio)
 app.use(Empty)
 app.use(InputNumber)
+app.use(Tabs)
+app.use(Space)
 
 app.mount('#app')

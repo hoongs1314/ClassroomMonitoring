@@ -270,7 +270,7 @@ def video_feed_endpoint(
 
 @app.get("/api/latest_frame")
 def api_latest_frame(
-	context = Depends(get_current_context),
+	context = Depends(get_current_context_from_header_or_query),
 	db: Session = Depends(get_db),
 ):
 	"""返回最新帧"""
