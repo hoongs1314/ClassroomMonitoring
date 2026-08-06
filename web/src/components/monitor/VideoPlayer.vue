@@ -28,13 +28,15 @@ const statusMap = {
   NORMAL: { c: '#22C55E', t: '正常' },
   HEAD_DOWN: { c: '#F59E0B', t: '低头' },
   DESK_LYING: { c: '#EF4444', t: '趴睡' },
+  TURNING_HEAD: { c: '#8B5CF6', t: '转头' },
+  EATING: { c: '#EC4899', t: '吃东西' },
   UNCERTAIN: { c: '#64748B', t: '模糊' },
   SUSPECTED: { c: '#0b90f5', t: '疑似' },
 }
 const getS = (s) => statusMap[s] || statusMap.NORMAL
 
 const abnormalSeats = computed(() =>
-  props.seats.filter((s) => ['HEAD_DOWN', 'DESK_LYING'].includes(s.status))
+  props.seats.filter((s) => ['HEAD_DOWN', 'DESK_LYING', 'TURNING_HEAD', 'EATING'].includes(s.status))
 )
 
 function getBoxStyle(box) {
@@ -132,9 +134,9 @@ function seekVideo(val) {
         class="detect-rect"
         :style="[getBoxStyle(s.box), { borderColor: getS(s.status).c }]"
       >
-<!--        <span class="detect-label" :style="{ background: getS(s.status).c }">-->
-<!--          {{ s.seat_code }}-->
-<!--        </span>-->
+        <span class="detect-label" :style="{ background: getS(s.status).c }">
+          {{ s.seat_code }} · {{ getS(s.status).t }}
+        </span>
       </div>
 
       <!-- 视频控制栏 -->

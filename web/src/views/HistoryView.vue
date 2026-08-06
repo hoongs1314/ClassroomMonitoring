@@ -16,8 +16,6 @@ const total = ref(0)
 const columns = [
   { title: '班级', dataIndex: 'class_name', width: 120 },
   { title: '教师', dataIndex: 'teacher_name', width: 120 },
-  { title: '课程', dataIndex: 'subject_name', width: 120 },
-  { title: '课堂主题', dataIndex: 'lesson_title' },
   { title: '状态', dataIndex: 'status', width: 100 },
   { title: '开始时间', dataIndex: 'started_at', width: 180 },
   { title: '警告', dataIndex: 'warning_count', width: 80 },

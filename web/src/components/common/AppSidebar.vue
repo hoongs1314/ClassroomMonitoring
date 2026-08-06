@@ -7,6 +7,7 @@ import {
   VideoCameraFilled,
   HistoryOutlined,
   LogoutOutlined,
+  SettingOutlined,
 } from '@ant-design/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useWebSocket } from '@/composables/useWebSocket'
@@ -27,6 +28,7 @@ const route = useRoute()
 const classList = ref([])
 const activeClass = ref('')
 const currentUser = ref(getStoredUser())
+const isAdmin = computed(() => currentUser.value?.roles?.includes('ADMIN'))
 
 function normalizeClass(item) {
   if (typeof item === 'string') {
@@ -92,6 +94,10 @@ function handleLogout() {
         <a-menu-item key="history" @click="router.push({ name: 'history' })">
           <template #icon><HistoryOutlined /></template>
           <span>历史复盘</span>
+        </a-menu-item>
+        <a-menu-item v-if="isAdmin" key="admin" @click="router.push({ name: 'admin' })">
+          <template #icon><SettingOutlined /></template>
+          <span>账号与班级管理</span>
         </a-menu-item>
       </a-menu>
       <span v-show="!collapsed" class="section-label">监控班级</span>

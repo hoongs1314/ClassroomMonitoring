@@ -21,6 +21,7 @@ from services.monitor_service import (
 	EVENT_CROP_DIR,
 	detection_analysis_loop,
 	frame_loader_worker,
+	refresh_runtime_class_config,
 	vlm_worker,
 	state,
 	start_monitoring,
@@ -29,6 +30,7 @@ from services.monitor_service import (
 	websocket_clients,
 )
 from routers.auth_routes import router as auth_router
+from routers.admin_routes import router as admin_router
 from routers.teacher_routes import router as teacher_router
 
 logger = logging.getLogger("monitor.service")
@@ -192,6 +194,7 @@ async def lifespan(app: FastAPI):
 	"""应用生命周期函数"""
 	init_database()
 	bootstrap_admin_user()
+	refresh_runtime_class_config()
 	start_background_threads()
 	broadcast_task = asyncio.create_task(broadcast_status_loop())
 	yield
@@ -212,6 +215,7 @@ app.add_middleware(
 )
 app.mount("/event_crops", StaticFiles(directory = str(EVENT_CROP_DIR)), name = "event_crops")
 app.include_router(auth_router)
+app.include_router(admin_router)
 app.include_router(teacher_router)
 
 
@@ -223,9 +227,6 @@ async def websocket_endpoint(websocket: WebSocket, db: Session = Depends(get_db)
 		await websocket.close(code = 1008)
 		return
 	allowed_classes = allowed_runtime_class_names(db, context)
-	if allowed_classes is not None and state["current_class"] not in allowed_classes:
-		await websocket.close(code = 1008)
-		return
 	await websocket.accept()
 	websocket_clients.add(websocket)
 	websocket_client_permissions[websocket] = allowed_classes
@@ -290,8 +291,6 @@ def api_start_monitoring(
 	x_class_name = Header(default = None, alias = "X-Class-Name"),
 	x_class_code = Header(default = None, alias = "X-Class-Code"),
 	x_teacher_id = Header(default = None, alias = "X-Teacher-Id"),
-	x_subject_id = Header(default = None, alias = "X-Subject-Id"),
-	x_lesson_title = Header(default = None, alias = "X-Lesson-Title"),
 	x_operator_user_id = Header(default = None, alias = "X-Operator-User-Id"),
 	x_operator_name = Header(default = None, alias = "X-Operator-Name"),
 	context = Depends(get_current_context),
@@ -304,8 +303,6 @@ def api_start_monitoring(
 		class_name = class_name,
 		class_code = x_class_code,
 		teacher_id = parse_optional_header_int(x_teacher_id, "X-Teacher-Id"),
-		subject_id = parse_optional_header_int(x_subject_id, "X-Subject-Id"),
-		lesson_title = decode_header_text(x_lesson_title),
 		operator_user_id = parse_optional_header_int(x_operator_user_id, "X-Operator-User-Id"),
 		operator_name = decode_header_text(x_operator_name),
 	)

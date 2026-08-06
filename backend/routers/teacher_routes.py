@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from core.database import get_db
 from core.dependencies import get_current_context, is_admin, parse_header_int
-from domain.models import EduClass, EduSubject, EduTeacher, EduTeacherClass, MonitorBehaviorEvent, MonitorEventFrame, MonitorSession, MonitorTeachingReview
+from domain.models import EduClass, EduTeacher, EduTeacherClass, MonitorBehaviorEvent, MonitorEventFrame, MonitorSession, MonitorTeachingReview
 
 
 router = APIRouter(prefix = "/api/teacher", tags = ["teacher"])
@@ -94,12 +94,6 @@ def teacher_classes(context = Depends(get_current_context), db: Session = Depend
 	}
 
 
-@router.get("/subjects")
-def subjects(context = Depends(get_current_context), db: Session = Depends(get_db)):
-	rows = db.query(EduSubject).filter(EduSubject.enabled == 1).order_by(EduSubject.subject_code.asc()).all()
-	return { "ok": True, "subjects": [{"id": row.id, "subject_code": row.subject_code, "subject_name": row.subject_name} for row in rows] }
-
-
 @router.get("/sessions")
 def teacher_sessions(
 	x_class_id = Header(default = None, alias = "X-Class-Id"),
@@ -133,8 +127,6 @@ def teacher_sessions(
 				"class_id": row.class_id,
 				"class_name": row.class_name,
 				"teacher_name": row.teacher_name,
-				"subject_name": row.subject_name,
-				"lesson_title": row.lesson_title,
 				"status": row.status,
 				"started_at": row.started_at,
 				"ended_at": row.ended_at,
@@ -164,8 +156,6 @@ def session_detail(
 			"class_id": session.class_id,
 			"class_name": session.class_name,
 			"teacher_name": session.teacher_name,
-			"subject_name": session.subject_name,
-			"lesson_title": session.lesson_title,
 			"status": session.status,
 			"started_at": session.started_at,
 			"ended_at": session.ended_at,

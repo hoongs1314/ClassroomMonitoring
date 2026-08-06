@@ -21,7 +21,6 @@ from core.database import db_session
 from core.paths import REPO_ROOT
 from domain.models import (
 	EduClass,
-	EduSubject,
 	EduTeacher,
 	MonitorBehaviorEvent,
 	MonitorEventFrame,
@@ -56,6 +55,7 @@ CLASS_CODE_MAP = {
 	"4班": "CLASS_4",
 }
 CLASS_NAME_BY_CODE = {code: name for name, code in CLASS_CODE_MAP.items()}
+SUPPORTED_VIDEO_SUFFIXES = { ".mp4", ".avi", ".mov", ".mkv" }
 
 # 同一座位 VLM 送检间隔（秒）
 VLM_INVOKE_SECONDS = 10
@@ -129,6 +129,72 @@ state = {
 	"events": [],
 	"counts": { "total": 0, "focus": 0, "normal": 0 },
 }
+
+
+def _resolve_video_path(video_path):
+	path = Path(str(video_path or "").strip())
+	return path if path.is_absolute() else ROOT_PATH / path
+
+
+def list_video_sources():
+	"""列出 inputs 目录中的可选本地测试视频，供管理员配置班级使用。"""
+	input_dir = (ROOT_PATH / "inputs").resolve()
+	if not input_dir.exists():
+		return []
+	return [
+		{
+			"path": path.relative_to(ROOT_PATH).as_posix(),
+			"name": path.name,
+		}
+		for path in sorted(input_dir.iterdir(), key = lambda item: item.name.lower())
+		if path.is_file() and path.suffix.lower() in SUPPORTED_VIDEO_SUFFIXES
+	]
+
+
+def validate_video_source(video_path):
+	"""校验班级视频仅引用项目 inputs 目录内已存在的本地测试文件。"""
+	path = _resolve_video_path(video_path).resolve()
+	input_dir = (ROOT_PATH / "inputs").resolve()
+	try:
+		path.relative_to(input_dir)
+	except ValueError:
+		raise ValueError("视频源路径必须位于 inputs 目录内")
+	if path.suffix.lower() not in SUPPORTED_VIDEO_SUFFIXES:
+		raise ValueError("视频源仅支持 mp4、avi、mov 或 mkv 文件")
+	if not path.is_file():
+		raise ValueError("视频源文件不存在")
+	return path.relative_to(ROOT_PATH).as_posix()
+
+
+def refresh_runtime_class_config():
+	"""根据已启用班级刷新运行时视频源，管理端保存后立即生效。"""
+	try:
+		with db_session() as db:
+			rows = db.query(EduClass).filter(EduClass.enabled == 1).order_by(EduClass.class_code.asc()).all()
+			configs = [
+				(row.class_name, row.class_code, validate_video_source(row.default_video_path))
+				for row in rows
+			]
+	except Exception as exc:
+		logger.warning("[Video] 刷新班级视频源失败: %s", exc)
+		return False
+	if not configs:
+		logger.warning("[Video] 未找到可用班级视频源，保留当前配置")
+		return False
+
+	previous_video = CLASS_VIDEOS.get(state["current_class"])
+	CLASS_VIDEOS.clear()
+	CLASS_VIDEOS.update({ class_name: _resolve_video_path(video_path) for class_name, _, video_path in configs })
+	CLASS_CODE_MAP.clear()
+	CLASS_CODE_MAP.update({ class_name: class_code for class_name, class_code, _ in configs })
+	CLASS_NAME_BY_CODE.clear()
+	CLASS_NAME_BY_CODE.update({ class_code: class_name for class_name, class_code, _ in configs })
+	state["class_list"] = list(CLASS_VIDEOS.keys())
+	if state["is_running"]:
+		return True
+	if state["current_class"] not in CLASS_VIDEOS or previous_video != CLASS_VIDEOS[state["current_class"]]:
+		switch_class(state["class_list"][0] if state["current_class"] not in CLASS_VIDEOS else state["current_class"])
+	return True
 
 
 def detection_analysis_loop():
@@ -230,7 +296,7 @@ def _resolve_runtime_class(class_name = None, class_code = None):
 	return state["current_class"]
 
 
-def start_monitoring(class_name = None, class_code = None, teacher_id = None, subject_id = None, lesson_title = None, operator_user_id = None, operator_name = None):
+def start_monitoring(class_name = None, class_code = None, teacher_id = None, operator_user_id = None, operator_name = None):
 	"""启动监控并尝试创建持久化会话；数据库异常不阻断实时监控。"""
 	target_class = _resolve_runtime_class(class_name, class_code)
 	if target_class != state["current_class"] and target_class in state["class_list"]:
@@ -249,16 +315,12 @@ def start_monitoring(class_name = None, class_code = None, teacher_id = None, su
 				logger.warning("[Persist] 班级未入库，跳过会话持久化: %s", state["current_class"])
 				return None
 			teacher = db.query(EduTeacher).filter(EduTeacher.id == teacher_id).first() if teacher_id else None
-			subject = db.query(EduSubject).filter(EduSubject.id == subject_id).first() if subject_id else None
 			session = MonitorSession(
 				session_no = _build_session_no(),
 				class_id = edu_class.id,
 				class_name = edu_class.class_name,
 				teacher_id = teacher.id if teacher else None,
 				teacher_name = teacher.teacher_name if teacher else None,
-				subject_id = subject.id if subject else None,
-				subject_name = subject.subject_name if subject else None,
-				lesson_title = lesson_title,
 				operator_user_id = operator_user_id,
 				operator_name = operator_name,
 				video_path = str(CLASS_VIDEOS[state["current_class"]]),

@@ -31,7 +31,6 @@ def _user_payload(db, user, roles = None):
 			class_scopes.append(
 				{
 					"class_id": row.class_id,
-					"subject_id": row.subject_id,
 					"relation_type": row.relation_type,
 					"can_view_monitor": bool(row.can_view_monitor),
 					"can_start_monitor": bool(row.can_start_monitor),

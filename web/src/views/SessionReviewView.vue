@@ -73,7 +73,7 @@ onMounted(loadData)
       <section v-if="session" class="summary-band">
         <div>
           <h1>{{ session.class_name }} 课堂复盘</h1>
-          <p>{{ session.subject_name || '通用课程' }} · {{ session.lesson_title || '未命名课堂' }}</p>
+          <p>开始时间：{{ session.started_at || '-' }}</p>
         </div>
         <div class="summary-grid">
           <div><span>学生</span><strong>{{ session.total_seat_count }}</strong></div>
