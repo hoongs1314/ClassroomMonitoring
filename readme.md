@@ -23,6 +23,14 @@
 - backend/prompts
   - VLM 分析提示词
 
+## 科研资料与运行资产
+
+- `docs/thesis_classroom_monitoring.md`：论文源稿；`docs/diagrams/` 保存论文图源和导出图；`docs/defense/` 用于存放答辩材料。
+- `docs/experiment_record.md`：记录实际使用的数据集、训练配置、权重和评估结果，未验证指标不得填写为结论。
+- `dataset/`：YOLO 训练数据，包含 `images/`、`labels/` 和 `classroom_behavior.yaml`；实际样本不纳入 Git。
+- `models/`：本地模型权重；运行时默认加载 `models/gmn26n-behavior.pt`。
+- `inputs/`：本地试运行视频；`outputs/`：事件截图和训练/评估输出。两者均不纳入 Git。
+
 ## 本地启动
 
 后端：

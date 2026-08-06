@@ -1,0 +1,12 @@
+# 相对本文件所在的 dataset 目录解析。
+path: .
+train: images/train
+val: images/val
+test: images/test
+
+names:
+  0: NORMAL
+  1: HEAD_DOWN
+  2: DESK_LYING
+  3: TURNING_HEAD
+  4: EATING
