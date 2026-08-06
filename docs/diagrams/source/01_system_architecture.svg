@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1040" viewBox="0 0 1600 1040">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#52616b"/>
+    </marker>
+    <style>
+      .title { font-family: 'Microsoft YaHei','SimHei',sans-serif; font-size: 32px; font-weight: 700; fill: #1f2933; }
+      .subtitle { font-family: 'Microsoft YaHei','SimHei',sans-serif; font-size: 17px; fill: #52616b; }
+      .layer { font-family: 'Microsoft YaHei','SimHei',sans-serif; font-size: 20px; font-weight: 700; fill: #ffffff; }
+      .box-title { font-family: 'Microsoft YaHei','SimHei',sans-serif; font-size: 20px; font-weight: 700; fill: #24313a; }
+      .box-text { font-family: 'Microsoft YaHei','SimHei',sans-serif; font-size: 16px; fill: #425466; }
+      .note { font-family: 'Microsoft YaHei','SimHei',sans-serif; font-size: 14px; fill: #5f6c72; }
+      .line { stroke: #52616b; stroke-width: 2.5; fill: none; marker-end: url(#arrow); }
+      .dashed { stroke: #81919a; stroke-width: 2.2; fill: none; stroke-dasharray: 8 7; marker-end: url(#arrow); }
+      .label { font-family: 'Microsoft YaHei','SimHei',sans-serif; font-size: 14px; fill: #425466; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1040" fill="#ffffff"/>
+  <text x="800" y="56" text-anchor="middle" class="title">课堂异常行为智能检测系统总体架构图</text>
+  <text x="800" y="84" text-anchor="middle" class="subtitle">依据现有前端、后端、监控服务与 MySQL 建表脚本绘制</text>
+
+  <rect x="48" y="122" width="112" height="792" rx="12" fill="#465a65"/>
+  <text x="104" y="518" text-anchor="middle" class="layer" transform="rotate(-90 104 518)">用户与展示层</text>
+  <rect x="48" y="924" width="112" height="70" rx="12" fill="#52616b"/>
+  <text x="104" y="952" text-anchor="middle" class="layer">文件与</text>
+  <text x="104" y="978" text-anchor="middle" class="layer">数据层</text>
+
+  <rect x="205" y="132" width="220" height="132" rx="14" fill="#e8f0f3" stroke="#8ca3ad" stroke-width="2"/>
+  <text x="315" y="171" text-anchor="middle" class="box-title">教师</text>
+  <text x="315" y="204" text-anchor="middle" class="box-text">课堂监控</text>
+  <text x="315" y="230" text-anchor="middle" class="box-text">历史会话与复盘</text>
+  <rect x="205" y="300" width="220" height="132" rx="14" fill="#e8f0f3" stroke="#8ca3ad" stroke-width="2"/>
+  <text x="315" y="339" text-anchor="middle" class="box-title">管理员</text>
+  <text x="315" y="372" text-anchor="middle" class="box-text">账号、班级与视频源</text>
+  <text x="315" y="398" text-anchor="middle" class="box-text">教师班级授权</text>
+
+  <rect x="492" y="132" width="345" height="300" rx="16" fill="#f2f6f7" stroke="#66818d" stroke-width="2.5"/>
+  <text x="664" y="169" text-anchor="middle" class="box-title">Vue 3 前端</text>
+  <line x1="525" y1="188" x2="805" y2="188" stroke="#b9c8ce" stroke-width="1.5"/>
+  <text x="664" y="226" text-anchor="middle" class="box-text">登录与身份状态</text>
+  <text x="664" y="264" text-anchor="middle" class="box-text">实时课堂监控与检测框展示</text>
+  <text x="664" y="302" text-anchor="middle" class="box-text">历史会话、事件详情与教学复盘</text>
+  <text x="664" y="340" text-anchor="middle" class="box-text">账号、班级和授权管理</text>
+  <text x="664" y="394" text-anchor="middle" class="note">HTTP 接口、MJPEG 视频流、WebSocket 状态推送</text>
+
+  <rect x="905" y="132" width="345" height="300" rx="16" fill="#f2f6f7" stroke="#66818d" stroke-width="2.5"/>
+  <text x="1078" y="169" text-anchor="middle" class="box-title">FastAPI 应用服务</text>
+  <line x1="938" y1="188" x2="1217" y2="188" stroke="#b9c8ce" stroke-width="1.5"/>
+  <text x="1078" y="226" text-anchor="middle" class="box-text">认证接口：登录、刷新令牌、登出</text>
+  <text x="1078" y="264" text-anchor="middle" class="box-text">管理员接口：账号、班级与授权</text>
+  <text x="1078" y="302" text-anchor="middle" class="box-text">教师接口：会话、事件与复盘</text>
+  <text x="1078" y="340" text-anchor="middle" class="box-text">监控接口、视频流与 WebSocket</text>
+  <text x="1078" y="394" text-anchor="middle" class="note">统一令牌解析与班级访问范围校验</text>
+
+  <rect x="205" y="510" width="1045" height="294" rx="16" fill="#f8fafb" stroke="#66818d" stroke-width="2.5"/>
+  <text x="235" y="548" class="box-title">智能分析与业务处理</text>
+  <rect x="245" y="579" width="185" height="165" rx="12" fill="#e8f0f3" stroke="#9aafb8" stroke-width="1.8"/>
+  <text x="338" y="619" text-anchor="middle" class="box-title">视频读取</text>
+  <text x="338" y="654" text-anchor="middle" class="box-text">本地测试视频</text>
+  <text x="338" y="681" text-anchor="middle" class="box-text">周期性帧更新</text>
+
+  <rect x="483" y="579" width="215" height="165" rx="12" fill="#e8f0f3" stroke="#9aafb8" stroke-width="1.8"/>
+  <text x="591" y="619" text-anchor="middle" class="box-title">行为检测</text>
+  <text x="591" y="654" text-anchor="middle" class="box-text">Ultralytics YOLO</text>
+  <text x="591" y="681" text-anchor="middle" class="box-text">SAHI 分片推理</text>
+
+  <rect x="751" y="579" width="215" height="165" rx="12" fill="#e8f0f3" stroke="#9aafb8" stroke-width="1.8"/>
+  <text x="859" y="619" text-anchor="middle" class="box-title">状态判定</text>
+  <text x="859" y="654" text-anchor="middle" class="box-text">匈牙利算法座位关联</text>
+  <text x="859" y="681" text-anchor="middle" class="box-text">滑动窗口告警规则</text>
+
+  <rect x="1018" y="579" width="192" height="165" rx="12" fill="#e8f0f3" stroke="#9aafb8" stroke-width="1.8"/>
+  <text x="1114" y="619" text-anchor="middle" class="box-title">异常复核</text>
+  <text x="1114" y="654" text-anchor="middle" class="box-text">VLM 任务队列</text>
+  <text x="1114" y="681" text-anchor="middle" class="box-text">局部截图语义说明</text>
+  <text x="1114" y="720" text-anchor="middle" class="note">仅对已触发异常送检</text>
+
+  <rect x="205" y="850" width="310" height="123" rx="14" fill="#e8f0f3" stroke="#8ca3ad" stroke-width="2"/>
+  <text x="360" y="888" text-anchor="middle" class="box-title">模型与视频文件</text>
+  <text x="360" y="921" text-anchor="middle" class="box-text">inputs 本地测试视频</text>
+  <text x="360" y="949" text-anchor="middle" class="box-text">models 行为检测权重</text>
+  <rect x="589" y="850" width="310" height="123" rx="14" fill="#e8f0f3" stroke="#8ca3ad" stroke-width="2"/>
+  <text x="744" y="888" text-anchor="middle" class="box-title">MySQL 结构化数据</text>
+  <text x="744" y="921" text-anchor="middle" class="box-text">用户、班级、授权与监控会话</text>
+  <text x="744" y="949" text-anchor="middle" class="box-text">座位、事件、复核与复盘记录</text>
+  <rect x="973" y="850" width="277" height="123" rx="14" fill="#e8f0f3" stroke="#8ca3ad" stroke-width="2"/>
+  <text x="1112" y="888" text-anchor="middle" class="box-title">事件截图文件</text>
+  <text x="1112" y="921" text-anchor="middle" class="box-text">outputs/event_crops</text>
+  <text x="1112" y="949" text-anchor="middle" class="box-text">异常局部图像留存</text>
+
+  <path d="M425 198 H492" class="line"/>
+  <path d="M425 366 H492" class="line"/>
+  <path d="M837 282 H905" class="line"/>
+  <text x="871" y="269" text-anchor="middle" class="label">HTTP</text>
+  <path d="M905 370 H837" class="dashed"/>
+  <text x="871" y="398" text-anchor="middle" class="label">状态推送</text>
+  <path d="M1078 432 V510" class="line"/>
+  <path d="M430 662 H483" class="line"/>
+  <path d="M698 662 H751" class="line"/>
+  <path d="M966 662 H1018" class="line"/>
+  <path d="M338 744 V850" class="line"/>
+  <path d="M859 744 V850" class="line"/>
+  <path d="M1114 744 V850" class="line"/>
+  <path d="M744 850 V804 H1078 V432" class="dashed"/>
+  <text x="898" y="789" text-anchor="middle" class="label">查询与持久化</text>
+
+  <text x="800" y="1020" text-anchor="middle" class="note">图中展示当前项目核心组件及其主要数据流，训练数据与评估结果由实际实验材料补充。</text>
+</svg>

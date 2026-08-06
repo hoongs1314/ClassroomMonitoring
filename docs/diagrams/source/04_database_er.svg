@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1240" viewBox="0 0 1600 1240">
+  <defs>
+    <style>
+      .title { font-family: 'Microsoft YaHei','SimHei',sans-serif; font-size: 32px; font-weight: 700; fill: #1f2933; }
+      .subtitle { font-family: 'Microsoft YaHei','SimHei',sans-serif; font-size: 17px; fill: #52616b; }
+      .group { font-family: 'Microsoft YaHei','SimHei',sans-serif; font-size: 21px; font-weight: 700; fill: #425466; }
+      .table-name { font-family: 'Consolas','Microsoft YaHei','SimHei',sans-serif; font-size: 17px; font-weight: 700; fill: #ffffff; }
+      .field { font-family: 'Microsoft YaHei','SimHei',sans-serif; font-size: 14px; fill: #35434d; }
+      .relation { stroke: #71818a; stroke-width: 2.1; fill: none; }
+      .card { font-family: 'Microsoft YaHei','SimHei',sans-serif; font-size: 15px; font-weight: 700; fill: #52616b; }
+      .note { font-family: 'Microsoft YaHei','SimHei',sans-serif; font-size: 14px; fill: #5f6c72; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1240" fill="#ffffff"/>
+  <text x="800" y="54" text-anchor="middle" class="title">课堂异常行为智能检测系统核心业务实体关系图</text>
+  <text x="800" y="82" text-anchor="middle" class="subtitle">依据 MySQL 初始化脚本中的主键、外键和授权关系绘制</text>
+
+  <rect x="48" y="116" width="420" height="1028" rx="18" fill="#f7fafb" stroke="#bac8ce" stroke-width="1.8"/>
+  <text x="78" y="154" class="group">系统账户与权限</text>
+  <rect x="505" y="116" width="365" height="1028" rx="18" fill="#f7fafb" stroke="#bac8ce" stroke-width="1.8"/>
+  <text x="535" y="154" class="group">教师与班级授权</text>
+  <rect x="905" y="116" width="647" height="1028" rx="18" fill="#f7fafb" stroke="#bac8ce" stroke-width="1.8"/>
+  <text x="935" y="154" class="group">监控会话与事件复盘</text>
+
+  <g>
+    <rect x="80" y="190" width="180" height="145" rx="9" fill="#ffffff" stroke="#66818d" stroke-width="1.8"/>
+    <rect x="80" y="190" width="180" height="38" rx="9" fill="#66818d"/>
+    <text x="170" y="215" text-anchor="middle" class="table-name">sys_user</text>
+    <text x="94" y="255" class="field">id（主键）</text><text x="94" y="280" class="field">username</text><text x="94" y="305" class="field">status</text><text x="94" y="330" class="field">real_name</text>
+  </g>
+  <g>
+    <rect x="80" y="430" width="180" height="120" rx="9" fill="#ffffff" stroke="#66818d" stroke-width="1.8"/>
+    <rect x="80" y="430" width="180" height="38" rx="9" fill="#66818d"/>
+    <text x="170" y="455" text-anchor="middle" class="table-name">sys_role</text>
+    <text x="94" y="494" class="field">id（主键）</text><text x="94" y="519" class="field">role_code</text><text x="94" y="544" class="field">role_name</text>
+  </g>
+  <g>
+    <rect x="295" y="306" width="140" height="120" rx="9" fill="#ffffff" stroke="#66818d" stroke-width="1.8"/>
+    <rect x="295" y="306" width="140" height="38" rx="9" fill="#66818d"/>
+    <text x="365" y="331" text-anchor="middle" class="table-name" font-size="15">sys_user_role</text>
+    <text x="309" y="370" class="field">id（主键）</text><text x="309" y="395" class="field">user_id</text><text x="309" y="420" class="field">role_id</text>
+  </g>
+  <g>
+    <rect x="80" y="665" width="180" height="120" rx="9" fill="#ffffff" stroke="#8ca3ad" stroke-width="1.8"/>
+    <rect x="80" y="665" width="180" height="38" rx="9" fill="#8ca3ad"/>
+    <text x="170" y="690" text-anchor="middle" class="table-name">sys_auth_token</text>
+    <text x="94" y="729" class="field">id（主键）</text><text x="94" y="754" class="field">user_id</text><text x="94" y="779" class="field">token_jti</text>
+  </g>
+  <g>
+    <rect x="295" y="665" width="140" height="120" rx="9" fill="#ffffff" stroke="#8ca3ad" stroke-width="1.8"/>
+    <rect x="295" y="665" width="140" height="38" rx="9" fill="#8ca3ad"/>
+    <text x="365" y="690" text-anchor="middle" class="table-name" font-size="14">sys_login_log</text>
+    <text x="309" y="729" class="field">id（主键）</text><text x="309" y="754" class="field">user_id</text><text x="309" y="779" class="field">login_result</text>
+  </g>
+
+  <g>
+    <rect x="540" y="190" width="180" height="145" rx="9" fill="#ffffff" stroke="#66818d" stroke-width="1.8"/>
+    <rect x="540" y="190" width="180" height="38" rx="9" fill="#66818d"/>
+    <text x="630" y="215" text-anchor="middle" class="table-name">edu_teacher</text>
+    <text x="554" y="255" class="field">id（主键）</text><text x="554" y="280" class="field">user_id</text><text x="554" y="305" class="field">teacher_no</text><text x="554" y="330" class="field">teacher_name</text>
+  </g>
+  <g>
+    <rect x="540" y="510" width="180" height="145" rx="9" fill="#ffffff" stroke="#66818d" stroke-width="1.8"/>
+    <rect x="540" y="510" width="180" height="38" rx="9" fill="#66818d"/>
+    <text x="630" y="535" text-anchor="middle" class="table-name">edu_class</text>
+    <text x="554" y="575" class="field">id（主键）</text><text x="554" y="600" class="field">class_code</text><text x="554" y="625" class="field">class_name</text><text x="554" y="650" class="field">head_teacher_id</text>
+  </g>
+  <g>
+    <rect x="730" y="344" width="110" height="170" rx="9" fill="#ffffff" stroke="#66818d" stroke-width="1.8"/>
+    <rect x="730" y="344" width="110" height="46" rx="9" fill="#66818d"/>
+    <text x="785" y="367" text-anchor="middle" class="table-name" font-size="12">edu_teacher</text>
+    <text x="785" y="384" text-anchor="middle" class="table-name" font-size="12">_class</text>
+    <text x="742" y="420" class="field">id</text><text x="742" y="445" class="field">teacher_id</text><text x="742" y="470" class="field">class_id</text><text x="742" y="495" class="field">权限范围</text>
+  </g>
+
+  <g>
+    <rect x="940" y="210" width="255" height="210" rx="9" fill="#ffffff" stroke="#66818d" stroke-width="1.9"/>
+    <rect x="940" y="210" width="255" height="38" rx="9" fill="#66818d"/>
+    <text x="1068" y="235" text-anchor="middle" class="table-name">monitor_session</text>
+    <text x="954" y="275" class="field">id（主键）、session_no</text><text x="954" y="300" class="field">class_id、teacher_id</text><text x="954" y="325" class="field">operator_user_id</text><text x="954" y="350" class="field">视频路径、运行状态</text><text x="954" y="375" class="field">开始/结束时间、统计数据</text><text x="954" y="400" class="field">检测、规则、复核配置快照</text>
+  </g>
+  <g>
+    <rect x="940" y="540" width="255" height="175" rx="9" fill="#ffffff" stroke="#66818d" stroke-width="1.9"/>
+    <rect x="940" y="540" width="255" height="38" rx="9" fill="#66818d"/>
+    <text x="1068" y="565" text-anchor="middle" class="table-name">monitor_session_seat</text>
+    <text x="954" y="605" class="field">id（主键）、session_id</text><text x="954" y="630" class="field">runtime_seat_id、seat_code</text><text x="954" y="655" class="field">边界框坐标、status</text><text x="954" y="680" class="field">det_category、analysis_source</text><text x="954" y="705" class="field">首次/最近识别时间</text>
+  </g>
+  <g>
+    <rect x="1250" y="500" width="255" height="235" rx="9" fill="#ffffff" stroke="#66818d" stroke-width="1.9"/>
+    <rect x="1250" y="500" width="255" height="38" rx="9" fill="#66818d"/>
+    <text x="1378" y="525" text-anchor="middle" class="table-name">monitor_behavior_event</text>
+    <text x="1264" y="565" class="field">id（主键）、event_uid</text><text x="1264" y="590" class="field">session_id、class_id、seat_id</text><text x="1264" y="615" class="field">seat_code、level、status</text><text x="1264" y="640" class="field">label、reason、source</text><text x="1264" y="665" class="field">截图地址、边界框、时间</text><text x="1264" y="690" class="field">复核标记、处理状态</text><text x="1264" y="715" class="field">handled_by</text>
+  </g>
+  <g>
+    <rect x="1250" y="860" width="255" height="135" rx="9" fill="#ffffff" stroke="#8ca3ad" stroke-width="1.8"/>
+    <rect x="1250" y="860" width="255" height="38" rx="9" fill="#8ca3ad"/>
+    <text x="1378" y="885" text-anchor="middle" class="table-name">monitor_event_frame</text>
+    <text x="1264" y="925" class="field">id（主键）、event_id</text><text x="1264" y="950" class="field">截图路径、状态与置信度</text><text x="1264" y="975" class="field">边界框与原始帧数据</text>
+  </g>
+  <g>
+    <rect x="940" y="880" width="255" height="160" rx="9" fill="#ffffff" stroke="#8ca3ad" stroke-width="1.8"/>
+    <rect x="940" y="880" width="255" height="38" rx="9" fill="#8ca3ad"/>
+    <text x="1068" y="905" text-anchor="middle" class="table-name">monitor_vlm_review</text>
+    <text x="954" y="945" class="field">id、event_id、session_id</text><text x="954" y="970" class="field">seat_id、model_name</text><text x="954" y="995" class="field">解析标签、原因、延迟</text><text x="954" y="1020" class="field">原始响应与成功状态</text>
+  </g>
+  <g>
+    <rect x="585" y="855" width="255" height="160" rx="9" fill="#ffffff" stroke="#8ca3ad" stroke-width="1.8"/>
+    <rect x="585" y="855" width="255" height="38" rx="9" fill="#8ca3ad"/>
+    <text x="713" y="880" text-anchor="middle" class="table-name">monitor_teaching_review</text>
+    <text x="599" y="920" class="field">id、session_id、teacher_id</text><text x="599" y="945" class="field">复盘状态、教学效果评分</text><text x="599" y="970" class="field">课堂专注、问题与计划</text><text x="599" y="995" class="field">复盘时间</text>
+  </g>
+
+  <path d="M260 262 H295 V346" class="relation"/><text x="269" y="278" class="card">1</text><text x="282" y="340" class="card">N</text>
+  <path d="M260 490 H282 V426 H295" class="relation"/><text x="271" y="482" class="card">1</text><text x="283" y="415" class="card">N</text>
+  <path d="M170 335 V665" class="relation"/><text x="178" y="359" class="card">1</text><text x="178" y="651" class="card">N</text>
+  <path d="M260 310 H365 V665" class="relation"/><text x="274" y="302" class="card">1</text><text x="372" y="651" class="card">N</text>
+  <path d="M260 262 H540" class="relation"/><text x="276" y="251" class="card">1</text><text x="522" y="251" class="card">0..1</text>
+  <path d="M720 262 H760 V344" class="relation"/><text x="730" y="251" class="card">1</text><text x="748" y="337" class="card">N</text>
+  <path d="M720 583 H760 V514" class="relation"/><text x="730" y="594" class="card">1</text><text x="748" y="527" class="card">N</text>
+  <path d="M720 262 H940" class="relation"/><text x="730" y="251" class="card">1</text><text x="919" y="251" class="card">N</text>
+  <path d="M720 583 H885 V300 H940" class="relation"/><text x="731" y="572" class="card">1</text><text x="918" y="292" class="card">N</text>
+  <path d="M1068 420 V540" class="relation"/><text x="1077" y="444" class="card">1</text><text x="1077" y="529" class="card">N</text>
+  <path d="M1195 627 H1250" class="relation"/><text x="1204" y="616" class="card">1</text><text x="1234" y="616" class="card">N</text>
+  <path d="M1195 680 H1220 V570 H1250" class="relation"/><text x="1204" y="698" class="card">1</text><text x="1234" y="560" class="card">N</text>
+  <path d="M1068 715 V880" class="relation"/><text x="1077" y="740" class="card">1</text><text x="1077" y="867" class="card">N</text>
+  <path d="M1378 735 V860" class="relation"/><text x="1387" y="760" class="card">1</text><text x="1387" y="847" class="card">N</text>
+  <path d="M1068 420 V780 H713 V855" class="relation"/><text x="1077" y="445" class="card">1</text><text x="722" y="844" class="card">N</text>
+  <path d="M630 335 V855" class="relation"/><text x="639" y="359" class="card">1</text><text x="639" y="844" class="card">N</text>
+
+  <text x="800" y="1190" text-anchor="middle" class="note">说明：本图聚焦当前授权、监控、事件与复盘的核心实体；主从关系以 1 和 N 标识，字段仅列出关系和业务关键项。</text>
+</svg>

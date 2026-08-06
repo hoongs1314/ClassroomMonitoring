@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1040" viewBox="0 0 1600 1040">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#52616b"/>
+    </marker>
+    <style>
+      .title { font-family: 'Microsoft YaHei','SimHei',sans-serif; font-size: 32px; font-weight: 700; fill: #1f2933; }
+      .subtitle { font-family: 'Microsoft YaHei','SimHei',sans-serif; font-size: 17px; fill: #52616b; }
+      .box-title { font-family: 'Microsoft YaHei','SimHei',sans-serif; font-size: 19px; font-weight: 700; fill: #24313a; }
+      .box-text { font-family: 'Microsoft YaHei','SimHei',sans-serif; font-size: 15px; fill: #425466; }
+      .note { font-family: 'Microsoft YaHei','SimHei',sans-serif; font-size: 14px; fill: #5f6c72; }
+      .line { stroke: #52616b; stroke-width: 2.6; fill: none; marker-end: url(#arrow); }
+      .dashed { stroke: #6f8791; stroke-width: 2.4; fill: none; stroke-dasharray: 8 7; marker-end: url(#arrow); }
+      .tag { font-family: 'Microsoft YaHei','SimHei',sans-serif; font-size: 16px; font-weight: 700; fill: #425466; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1040" fill="#ffffff"/>
+  <text x="800" y="56" text-anchor="middle" class="title">课堂视频分析与异常事件处理流程图</text>
+  <text x="800" y="84" text-anchor="middle" class="subtitle">监控服务以周期性检测、连续状态判定和异常复核组织业务流程</text>
+
+  <rect x="76" y="148" width="210" height="92" rx="46" fill="#e8f0f3" stroke="#66818d" stroke-width="2.2"/>
+  <text x="181" y="188" text-anchor="middle" class="box-title">教师登录并选择班级</text>
+  <text x="181" y="216" text-anchor="middle" class="box-text">发起启动监控请求</text>
+
+  <rect x="370" y="140" width="245" height="108" rx="14" fill="#f5f8f9" stroke="#8ca3ad" stroke-width="2"/>
+  <text x="493" y="182" text-anchor="middle" class="box-title">身份与班级权限校验</text>
+  <text x="493" y="212" text-anchor="middle" class="box-text">解析令牌，确认可启动范围</text>
+
+  <rect x="700" y="140" width="220" height="108" rx="14" fill="#f5f8f9" stroke="#8ca3ad" stroke-width="2"/>
+  <text x="810" y="182" text-anchor="middle" class="box-title">创建监控会话</text>
+  <text x="810" y="212" text-anchor="middle" class="box-text">切换视频源并重置状态</text>
+
+  <rect x="1005" y="140" width="250" height="108" rx="14" fill="#f5f8f9" stroke="#8ca3ad" stroke-width="2"/>
+  <text x="1130" y="182" text-anchor="middle" class="box-title">视频帧持续读取</text>
+  <text x="1130" y="212" text-anchor="middle" class="box-text">更新当前帧与图像尺寸</text>
+
+  <rect x="690" y="326" width="240" height="108" rx="14" fill="#edf3f5" stroke="#66818d" stroke-width="2"/>
+  <text x="810" y="368" text-anchor="middle" class="box-title">YOLO 与 SAHI 检测</text>
+  <text x="810" y="398" text-anchor="middle" class="box-text">输出类别、边界框与置信度</text>
+
+  <rect x="690" y="506" width="240" height="108" rx="14" fill="#edf3f5" stroke="#66818d" stroke-width="2"/>
+  <text x="810" y="548" text-anchor="middle" class="box-title">座位关联与状态更新</text>
+  <text x="810" y="578" text-anchor="middle" class="box-text">匈牙利算法匹配连续座位</text>
+
+  <rect x="690" y="686" width="240" height="108" rx="14" fill="#edf3f5" stroke="#66818d" stroke-width="2"/>
+  <text x="810" y="728" text-anchor="middle" class="box-title">滑动窗口规则判定</text>
+  <text x="810" y="758" text-anchor="middle" class="box-text">生成正常、提示或警告状态</text>
+
+  <path d="M1120 707 L1224 758 L1120 809 L1016 758 Z" fill="#fff9e8" stroke="#9a7d42" stroke-width="2.2"/>
+  <text x="1120" y="753" text-anchor="middle" class="box-title">达到异常</text>
+  <text x="1120" y="779" text-anchor="middle" class="box-title">阈值？</text>
+
+  <rect x="1310" y="674" width="218" height="166" rx="14" fill="#f5f8f9" stroke="#8ca3ad" stroke-width="2"/>
+  <text x="1419" y="714" text-anchor="middle" class="box-title">保存实时状态</text>
+  <text x="1419" y="747" text-anchor="middle" class="box-text">更新座位、统计与事件列表</text>
+  <text x="1419" y="776" text-anchor="middle" class="box-text">经 WebSocket 推送前端</text>
+  <text x="1419" y="813" text-anchor="middle" class="note">等待下一轮周期检测</text>
+
+  <rect x="720" y="880" width="238" height="112" rx="14" fill="#f5f8f9" stroke="#8ca3ad" stroke-width="2"/>
+  <text x="839" y="920" text-anchor="middle" class="box-title">事件留痕</text>
+  <text x="839" y="949" text-anchor="middle" class="box-text">保存截图、事件与帧记录</text>
+  <text x="839" y="975" text-anchor="middle" class="box-text">写入 MySQL 与文件目录</text>
+
+  <rect x="1010" y="880" width="238" height="112" rx="14" fill="#f5f8f9" stroke="#8ca3ad" stroke-width="2"/>
+  <text x="1129" y="920" text-anchor="middle" class="box-title">VLM 异常复核</text>
+  <text x="1129" y="949" text-anchor="middle" class="box-text">局部截图进入任务队列</text>
+  <text x="1129" y="975" text-anchor="middle" class="box-text">补充标签与原因说明</text>
+
+  <rect x="1300" y="880" width="238" height="112" rx="14" fill="#f5f8f9" stroke="#8ca3ad" stroke-width="2"/>
+  <text x="1419" y="920" text-anchor="middle" class="box-title">历史查询与教学复盘</text>
+  <text x="1419" y="949" text-anchor="middle" class="box-text">查看会话、事件和截图</text>
+  <text x="1419" y="975" text-anchor="middle" class="box-text">保存教师复盘内容</text>
+
+  <path d="M286 194 H370" class="line"/>
+  <path d="M615 194 H700" class="line"/>
+  <path d="M920 194 H1005" class="line"/>
+  <path d="M1130 248 V280 H810 V326" class="line"/>
+  <path d="M810 434 V506" class="line"/>
+  <path d="M810 614 V686" class="line"/>
+  <path d="M930 758 H1016" class="line"/>
+  <path d="M1224 758 H1310" class="line"/>
+  <text x="1261" y="744" text-anchor="middle" class="tag">否</text>
+  <path d="M1120 809 V838 H839 V880" class="line"/>
+  <text x="1097" y="845" text-anchor="middle" class="tag">是</text>
+  <path d="M958 936 H1010" class="line"/>
+  <path d="M1248 936 H1300" class="line"/>
+  <path d="M1419 840 V880" class="dashed"/>
+  <path d="M1419 674 V576 H976 V434 H930" class="dashed"/>
+  <text x="1105" y="560" text-anchor="middle" class="note">持续运行时进入下一轮检测</text>
+
+  <text x="75" y="1020" class="note">说明：异常复核仅针对达到滑动窗口告警条件的座位执行；阈值与实际效果以运行记录为准。</text>
+</svg>
