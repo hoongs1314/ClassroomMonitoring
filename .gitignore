@@ -11,6 +11,7 @@ __pycache__/
 /inputs/*
 !/inputs/README.md
 .env
+/deploy/.env.production
 .idea
 .vscode
 .DS_Store

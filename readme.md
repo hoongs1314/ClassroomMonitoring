@@ -58,6 +58,20 @@ mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS classroom_monitoring DEFAULT 
 mysql -u root -p classroom_monitoring < db/001_init_mysql.sql
 ```
 
+## 自动化测试
+
+后端使用 Python 标准库 `unittest`，前端使用 Node 内置测试器；在项目根目录执行：
+
+```powershell
+.\scripts\run-tests.ps1
+```
+
+如只检查后端，可执行：
+
+```powershell
+.\scripts\run-tests.ps1 -SkipFrontend
+```
+
 ## Docker 启动
 
 准备模型和视频文件：
@@ -73,6 +87,10 @@ mysql -u root -p classroom_monitoring < db/001_init_mysql.sql
 ```powershell
 docker compose up -d --build
 ```
+
+## 生产 Docker 部署
+
+面向内网服务器的最小暴露端口部署，请按 [deploy/README.md](deploy/README.md) 准备密钥和运行资产后，使用 `docker-compose.production.yml` 启动。
 
 首次需要登录时，建议先在 `.env` 或当前终端设置：
 
