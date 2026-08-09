@@ -97,10 +97,10 @@ onMounted(loadData)
           <p>结束时间：{{ session.ended_at || '课次尚未正常结束' }}</p>
         </div>
         <div class="summary-grid">
-          <div><span>学生</span><strong>{{ session.total_seat_count }}</strong></div>
-          <div><span>警告</span><strong>{{ session.warning_count }}</strong></div>
-          <div><span>提示</span><strong>{{ session.notice_count }}</strong></div>
-          <div><span>事件</span><strong>{{ session.event_count }}</strong></div>
+          <div class="summary-card"><span>学生</span><strong>{{ session.total_seat_count }}</strong></div>
+          <div class="summary-card summary-warning"><span>警告</span><strong>{{ session.warning_count }}</strong></div>
+          <div class="summary-card summary-notice"><span>提示</span><strong>{{ session.notice_count }}</strong></div>
+          <div class="summary-card summary-event"><span>事件</span><strong>{{ session.event_count }}</strong></div>
         </div>
       </section>
 
@@ -110,10 +110,11 @@ onMounted(loadData)
             <h2>异常事件</h2>
           </div>
           <div v-if="events.length" class="event-list">
-            <article v-for="event in events" :key="event.id" class="event-row">
+            <article v-for="event in events" :key="event.id" class="event-row" :class="{ 'without-image': !event.url }">
               <img v-if="event.url" :src="mediaUrl(event.url)" alt="event" />
-              <div>
-                <strong>{{ event.seat }} · {{ event.label || event.status }}</strong>
+              <div class="event-copy">
+                <strong>座位 {{ event.seat }} · {{ event.label || event.status }}</strong>
+                <span>{{ event.alert_start_time || event.time || '时间待同步' }}</span>
                 <p>{{ event.reason || '等待模型分析' }}</p>
               </div>
               <a-tag :color="event.level === '警告' ? 'red' : 'orange'">{{ event.level }}</a-tag>
@@ -197,15 +198,20 @@ p {
 }
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, 86px);
+  grid-template-columns: repeat(4, minmax(100px, 1fr));
   gap: 10px;
 }
-.summary-grid div {
+.summary-card {
+  position: relative;
   padding: 10px;
+  overflow: hidden;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
-  background: var(--bg-elevated);
+  background: linear-gradient(145deg, rgba(59, 130, 246, 0.1), transparent 58%), var(--bg-elevated);
 }
+.summary-card::before { position: absolute; top: 0; right: 10px; left: 10px; height: 3px; border-radius: 0 0 3px 3px; background: var(--color-primary); content: ''; }
+.summary-warning::before, .summary-event::before { background: var(--color-danger); }
+.summary-notice::before { background: var(--color-warning); }
 .summary-grid span {
   display: block;
   color: var(--text-muted);
@@ -217,6 +223,8 @@ p {
   color: var(--color-primary);
   font-size: 24px;
 }
+.summary-warning strong, .summary-event strong { color: var(--color-danger); }
+.summary-notice strong { color: var(--color-warning); }
 .review-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 420px;
@@ -245,7 +253,14 @@ p {
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
   background: var(--bg-elevated);
+  transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
 }
+.event-row:hover { border-color: var(--border-hover); box-shadow: var(--shadow-card); }
+.event-row.without-image { grid-template-columns: minmax(0, 1fr) auto auto; }
+.event-copy { min-width: 0; }
+.event-copy strong { display: block; color: var(--text-primary); }
+.event-copy span { display: block; margin-top: 2px; color: var(--text-muted); font-size: 12px; }
+.event-copy p { display: -webkit-box; overflow: hidden; margin-top: 4px; font-size: 13px; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .event-detail {
   display: grid;
   gap: 14px;
@@ -306,5 +321,6 @@ label {
   .frame-grid {
     grid-template-columns: 1fr;
   }
+  .event-row.without-image { grid-template-columns: 1fr; }
 }
 </style>

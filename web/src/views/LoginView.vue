@@ -38,8 +38,9 @@ async function handleLogin() {
 <template>
   <main class="login-view">
     <section class="login-panel">
-      <div class="brand-mark">课堂监测</div>
-      <h1>登录</h1>
+      <div class="brand-mark">课后教学分析</div>
+      <h1>欢迎登录</h1>
+      <p class="login-copy">查看课堂分析结果，沉淀可追溯的教学复盘。</p>
       <div class="form-stack">
         <a-input v-model:value="username" size="large" placeholder="用户名" @keydown.enter="handleLogin">
           <template #prefix><UserOutlined /></template>
@@ -63,13 +64,16 @@ async function handleLogin() {
   background: var(--bg-primary);
 }
 .login-panel {
+  position: relative;
   width: min(420px, 100%);
-  padding: 32px;
+  padding: 36px 32px 32px;
+  overflow: hidden;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
   background: var(--bg-card);
   box-shadow: var(--shadow-card);
 }
+.login-panel::before { position: absolute; top: 0; right: 32px; left: 32px; height: 3px; border-radius: 0 0 3px 3px; background: linear-gradient(90deg, var(--color-primary), #60A5FA); content: ''; }
 .brand-mark {
   width: fit-content;
   margin-bottom: 18px;
@@ -80,10 +84,11 @@ async function handleLogin() {
   font-weight: 700;
 }
 h1 {
-  margin: 0 0 24px;
+  margin: 0;
   font-size: 28px;
   color: var(--text-primary);
 }
+.login-copy { margin: 8px 0 24px; color: var(--text-muted); font-size: 14px; line-height: 1.6; }
 .form-stack {
   display: grid;
   gap: 14px;

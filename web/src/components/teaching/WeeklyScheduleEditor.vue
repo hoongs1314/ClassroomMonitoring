@@ -136,6 +136,7 @@ function updateFilter(value) {
               @click.stop="emit('edit', schedule)"
             >
               <strong>{{ courseTitle(schedule) }}</strong>
+              <small v-if="schedule.lesson_title">{{ schedule.lesson_title }}</small>
               <em v-if="!schedule.enabled">已停用</em>
             </button>
           </div>
@@ -156,9 +157,9 @@ function updateFilter(value) {
 .period-header, .day-header { padding: 10px 8px; color: var(--text-secondary); font-size: 13px; font-weight: 600; text-align: center; }
 .day-header, .lesson-cell { border-left: 1px solid var(--border-default); }
 .period-section + .period-section { border-top: 2px solid var(--border-default); }
-.session-label { padding: 8px 12px; color: var(--text-secondary); font-size: 13px; font-weight: 600; background: var(--bg-page); border-bottom: 1px solid var(--border-default); }
+.session-label { padding: 8px 12px; color: var(--text-secondary); font-size: 13px; font-weight: 600; background: var(--bg-elevated); border-bottom: 1px solid var(--border-default); }
 .period-row { border-bottom: 1px solid var(--border-default); }
-.period-label { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 94px; padding: 8px; color: var(--text-secondary); text-align: center; background: var(--bg-page); }
+.period-label { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 94px; padding: 8px; color: var(--text-secondary); text-align: center; background: var(--bg-elevated); }
 .period-label strong { color: var(--text-primary); font-size: 13px; }
 .period-label span { font-size: 11px; }
 .lesson-cell { display: flex; flex-direction: column; gap: 6px; min-height: 94px; padding: 7px; cursor: crosshair; background: var(--bg-card); }
@@ -166,7 +167,9 @@ function updateFilter(value) {
 .schedule-card { display: flex; flex-direction: column; width: 100%; min-width: 0; min-height: 54px; padding: 9px 10px; color: var(--text-primary); text-align: left; cursor: pointer; background: color-mix(in srgb, var(--schedule-color) 12%, var(--bg-card)); border: 1px solid color-mix(in srgb, var(--schedule-color) 55%, var(--border-default)); border-left: 4px solid var(--schedule-color); border-radius: 6px; box-shadow: 0 1px 4px rgb(15 23 42 / 8%); }
 .schedule-card:hover { z-index: 2; box-shadow: 0 4px 10px rgb(15 23 42 / 15%); transform: translateY(-1px); }
 .schedule-card strong { display: -webkit-box; overflow: hidden; color: var(--text-primary); font-size: 14px; line-height: 1.35; text-overflow: ellipsis; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; }
+.schedule-card small { overflow: hidden; margin-top: 3px; color: var(--text-secondary); font-size: 11px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
 .schedule-card em { margin-top: 3px; color: var(--text-muted); font-size: 11px; font-style: normal; }
 .schedule-card.disabled { opacity: 0.55; filter: grayscale(0.4); }
+.schedule-card:focus-visible { outline: 2px solid var(--schedule-color); outline-offset: 2px; }
 @media (max-width: 760px) { .schedule-toolbar { flex-direction: column; } }
 </style>

@@ -318,11 +318,11 @@ onMounted(loadData)
         </header>
 
         <section class="summary-grid">
-          <div><span>已分析课次</span><strong>{{ entries.length }}</strong></div>
-          <div><span>待分析课次</span><strong>{{ course.pending_analysis_count }}</strong></div>
-          <div><span>待跟进措施</span><strong>{{ course.open_action_count }}</strong></div>
-          <div><span>计划课次</span><strong>{{ course.planned_lesson_count ?? '-' }}</strong></div>
-          <div><span>阶段报告</span><strong>{{ reports.filter((item) => item.report_scope === 'COURSE').length }}</strong></div>
+          <div class="summary-card summary-completed"><span>已分析课次</span><strong>{{ entries.length }}</strong></div>
+          <div class="summary-card summary-pending"><span>待分析课次</span><strong>{{ course.pending_analysis_count }}</strong></div>
+          <div class="summary-card summary-followup"><span>待跟进措施</span><strong>{{ course.open_action_count }}</strong></div>
+          <div class="summary-card summary-planned"><span>计划课次</span><strong>{{ course.planned_lesson_count ?? '-' }}</strong></div>
+          <div class="summary-card summary-report"><span>阶段报告</span><strong>{{ reports.filter((item) => item.report_scope === 'COURSE').length }}</strong></div>
         </section>
 
         <a-tabs v-model:active-key="activeTab" class="detail-tabs">
@@ -336,12 +336,12 @@ onMounted(loadData)
                 </div>
               </div>
               <div class="archive-summary-grid">
-                <div><span>课次</span><strong>{{ archiveSummary.session_count }}</strong></div>
-                <div><span>警告</span><strong>{{ archiveSummary.warning_count }}</strong></div>
-                <div><span>提示</span><strong>{{ archiveSummary.notice_count }}</strong></div>
-                <div><span>事件</span><strong>{{ archiveSummary.event_count }}</strong></div>
+                <div class="archive-stat archive-session"><span>课次</span><strong>{{ archiveSummary.session_count }}</strong></div>
+                <div class="archive-stat archive-warning"><span>警告</span><strong>{{ archiveSummary.warning_count }}</strong></div>
+                <div class="archive-stat archive-notice"><span>提示</span><strong>{{ archiveSummary.notice_count }}</strong></div>
+                <div class="archive-stat archive-event"><span>事件</span><strong>{{ archiveSummary.event_count }}</strong></div>
               </div>
-              <a-table :columns="archiveColumns" :data-source="archiveSessions" :loading="archiveLoading" :pagination="archivePagination" row-key="id" @change="handleArchiveTableChange">
+              <a-table :columns="archiveColumns" :data-source="archiveSessions" :loading="archiveLoading" :pagination="archivePagination" :scroll="{ x: 'max-content' }" row-key="id" @change="handleArchiveTableChange">
                 <template #bodyCell="{ column, record }">
                   <template v-if="column.dataIndex === 'lesson_title'">{{ record.lesson_title || '未命名课次' }}</template>
                   <template v-else-if="column.key === 'status'"><a-tag>{{ sessionStatusText(record.status) }}</a-tag></template>
@@ -358,7 +358,7 @@ onMounted(loadData)
                 <div class="panel-bar"><h2>历次课后分析</h2><span>按课次查看数据变化与教学反思</span></div>
                 <a-empty v-if="!entries.length" description="暂无已完成的课次分析。" />
                 <div v-else class="entry-list">
-                  <article v-for="entry in entries" :key="entry.id" class="entry-card">
+                  <article v-for="entry in entries" :key="entry.id" class="entry-card" :class="{ 'is-baseline': entry.is_baseline, 'is-milestone': entry.is_milestone }">
                     <div class="entry-index">{{ entry.lesson_index }}</div>
                     <div class="entry-main">
                       <div class="entry-title">
@@ -391,7 +391,7 @@ onMounted(loadData)
                   <div class="panel-bar"><h2>教学改进闭环</h2></div>
                   <a-empty v-if="!actions.length" description="暂无教学改进措施" :image-style="{ height: '52px' }" />
                   <div v-else class="action-list">
-                    <article v-for="action in actions" :key="action.id" class="action-card">
+                    <article v-for="action in actions" :key="action.id" class="action-card" :class="`action-${String(action.action_status || '').toLowerCase()}`">
                       <div class="action-title"><strong>{{ action.issue_type || '教学观察' }}</strong><a-tag>{{ actionText(action.action_status) }}</a-tag></div>
                       <p>问题：{{ action.issue_description }}</p>
                       <p>措施：{{ action.improvement_plan }}</p>
@@ -414,7 +414,7 @@ onMounted(loadData)
                   </div>
                   <div v-if="reports.length" class="report-list">
                     <a-divider>课程报告</a-divider>
-                    <article v-for="report in reports.filter((item) => item.report_scope === 'COURSE')" :key="report.id" class="report-card">
+                    <article v-for="report in reports.filter((item) => item.report_scope === 'COURSE')" :key="report.id" class="report-card" :class="{ published: report.report_status === 'PUBLISHED' }">
                       <strong>{{ report.report_title }}</strong>
                       <span>{{ report.report_status === 'PUBLISHED' ? '已发布' : '草稿' }}</span>
                       <a-button type="link" @click="openReport(report)">{{ report.report_status === 'PUBLISHED' ? '查看' : '编辑与发布' }}</a-button>
@@ -472,32 +472,54 @@ h2 { color: var(--text-primary); font-size: 17px; }
 p { color: var(--text-secondary); }
 .course-head p { margin-top: 6px; color: var(--text-muted); }
 .summary-grid { display: grid; grid-template-columns: repeat(5, minmax(110px, 1fr)); gap: 12px; margin: 16px 0; }
-.summary-grid div, .panel { padding: 16px; border: 1px solid var(--border-default); border-radius: var(--radius-lg); background: var(--bg-card); }
+.summary-card, .panel { padding: 16px; border: 1px solid var(--border-default); border-radius: var(--radius-lg); background: var(--bg-card); }
+.summary-card { position: relative; overflow: hidden; background: linear-gradient(145deg, rgba(59, 130, 246, 0.08), transparent 55%), var(--bg-card); }
+.summary-card::before { position: absolute; top: 0; right: 16px; left: 16px; height: 3px; border-radius: 0 0 3px 3px; background: var(--color-primary); content: ''; }
+.summary-pending::before { background: var(--color-warning); }
+.summary-followup::before { background: var(--color-danger); }
+.summary-report::before { background: #A78BFA; }
 .summary-grid span { display: block; color: var(--text-muted); font-size: 12px; }
 .summary-grid strong { display: block; margin-top: 4px; color: var(--color-primary); font-size: 24px; }
+.summary-pending strong { color: var(--color-warning); }
+.summary-followup strong { color: var(--color-danger); }
+.summary-planned strong { color: var(--text-secondary); }
+.summary-report strong { color: #A78BFA; }
 .detail-tabs { margin-top: 6px; }
 .archive-panel { margin-top: 2px; }
 .archive-bar { align-items: flex-start; }
 .archive-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .archive-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(110px, 1fr)); gap: 12px; margin-bottom: 16px; }
-.archive-summary-grid div { padding: 12px; border-radius: var(--radius-md); background: var(--bg-elevated); }
+.archive-stat { padding: 12px; border: 1px solid transparent; border-radius: var(--radius-md); background: var(--bg-elevated); }
 .archive-summary-grid span { display: block; color: var(--text-muted); font-size: 12px; }
 .archive-summary-grid strong { display: block; margin-top: 4px; color: var(--color-primary); font-size: 22px; }
+.archive-warning { border-color: rgba(239, 68, 68, 0.22); }
+.archive-warning strong, .archive-event strong { color: var(--color-danger); }
+.archive-notice { border-color: rgba(245, 158, 11, 0.22); }
+.archive-notice strong { color: var(--color-warning); }
 .content-grid { display: grid; grid-template-columns: minmax(0, 1fr) 390px; gap: 16px; }
 .panel { min-width: 0; }
 .panel-bar { margin-bottom: 12px; }
 .panel-bar span { color: var(--text-muted); font-size: 12px; }
 .entry-list, .action-list, .aggregate-list, .report-list { display: grid; gap: 10px; }
-.entry-card { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; gap: 12px; padding: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-elevated); }
+.entry-card { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; gap: 12px; padding: 14px; border: 1px solid var(--border-default); border-left: 3px solid var(--color-primary); border-radius: var(--radius-md); background: var(--bg-elevated); transition: border-color var(--duration-fast), box-shadow var(--duration-fast), transform var(--duration-fast); }
+.entry-card:hover { box-shadow: var(--shadow-card); transform: translateY(-1px); }
+.entry-card.is-baseline { border-left-color: #60A5FA; }
+.entry-card.is-milestone { border-left-color: #A78BFA; }
 .entry-index { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; background: var(--color-primary-soft); color: var(--color-primary); font-weight: 700; }
 .entry-title { justify-content: flex-start; flex-wrap: wrap; color: var(--text-primary); }
 .entry-title span, .entry-metrics { color: var(--text-muted); font-size: 12px; }
 .entry-metrics { display: flex; flex-wrap: wrap; gap: 10px; margin: 7px 0; }
 .entry-main p { margin-top: 6px; font-size: 13px; }
 .teacher-note { color: var(--color-primary) !important; }
-.entry-actions { display: grid; align-content: start; }
+.entry-actions { display: grid; align-content: start; padding-left: 4px; border-left: 1px solid var(--border-default); }
 .side-column { display: grid; gap: 16px; align-content: start; }
-.action-card, .aggregate-card, .report-card { padding: 10px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-elevated); }
+.action-card, .aggregate-card, .report-card { padding: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-elevated); }
+.action-card { border-left: 3px solid var(--color-warning); }
+.action-implemented { border-left-color: var(--color-primary); }
+.action-verified, .action-closed { border-left-color: var(--color-success); }
+.aggregate-card { background: linear-gradient(145deg, rgba(59, 130, 246, 0.08), transparent 60%), var(--bg-elevated); }
+.report-card { align-items: center; }
+.report-card.published { border-color: rgba(34, 197, 94, 0.35); }
 .action-card p, .aggregate-card p { margin-top: 6px; font-size: 12px; }
 .tag-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
 .report-card { display: grid; grid-template-columns: 1fr auto auto; }

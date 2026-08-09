@@ -125,11 +125,11 @@ onMounted(async () => {
     </header>
 
     <section class="summary-grid">
-      <div><span>课堂数</span><strong>{{ summary.session_count }}</strong></div>
-      <div><span>班级数</span><strong>{{ summary.class_count }}</strong></div>
-      <div><span>警告</span><strong>{{ summary.warning_count }}</strong></div>
-      <div><span>提示</span><strong>{{ summary.notice_count }}</strong></div>
-      <div><span>事件</span><strong>{{ summary.event_count }}</strong></div>
+      <div class="summary-card"><span>课堂数</span><strong>{{ summary.session_count }}</strong></div>
+      <div class="summary-card"><span>班级数</span><strong>{{ summary.class_count }}</strong></div>
+      <div class="summary-card summary-warning"><span>警告</span><strong>{{ summary.warning_count }}</strong></div>
+      <div class="summary-card summary-notice"><span>提示</span><strong>{{ summary.notice_count }}</strong></div>
+      <div class="summary-card summary-event"><span>事件</span><strong>{{ summary.event_count }}</strong></div>
     </section>
 
     <a-table
@@ -137,6 +137,7 @@ onMounted(async () => {
       :data-source="sessions"
       :loading="loading"
       :pagination="pagination"
+      :scroll="{ x: 'max-content' }"
       row-key="id"
       @change="handleTableChange"
     >
@@ -182,12 +183,17 @@ p {
   gap: 12px;
   margin-bottom: 16px;
 }
-.summary-grid div {
+.summary-card {
+  position: relative;
   padding: 14px 16px;
+  overflow: hidden;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
-  background: var(--bg-card);
+  background: linear-gradient(145deg, rgba(59, 130, 246, 0.08), transparent 58%), var(--bg-card);
 }
+.summary-card::before { position: absolute; top: 0; right: 14px; left: 14px; height: 3px; border-radius: 0 0 3px 3px; background: var(--color-primary); content: ''; }
+.summary-warning::before, .summary-event::before { background: var(--color-danger); }
+.summary-notice::before { background: var(--color-warning); }
 .summary-grid span {
   display: block;
   color: var(--text-muted);
@@ -199,6 +205,8 @@ p {
   color: var(--color-primary);
   font-size: 24px;
 }
+.summary-warning strong, .summary-event strong { color: var(--color-danger); }
+.summary-notice strong { color: var(--color-warning); }
 @media (max-width: 760px) {
   .page-head {
     align-items: flex-start;
