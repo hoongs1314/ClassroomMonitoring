@@ -15,5 +15,7 @@ __pycache__/
 .idea
 .vscode
 .DS_Store
+~$*.doc
+~$*.docx
 node_modules/
 dist/
