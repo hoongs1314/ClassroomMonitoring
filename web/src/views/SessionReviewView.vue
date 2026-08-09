@@ -10,6 +10,9 @@ const { requestJson, mediaUrl } = useApi()
 
 const loading = ref(false)
 const saving = ref(false)
+const detailLoading = ref(false)
+const detailOpen = ref(false)
+const eventDetail = ref(null)
 const session = ref(null)
 const events = ref([])
 const review = ref({
@@ -62,6 +65,23 @@ async function saveReview() {
   }
 }
 
+async function openEventDetail(event) {
+  detailOpen.value = true
+  detailLoading.value = true
+  eventDetail.value = null
+  try {
+    const data = await requestJson('/api/teacher/event/detail', {
+      headers: { 'X-Event-Id': String(event.id) },
+    })
+    eventDetail.value = data.event || null
+  } catch (error) {
+    message.error(error.message || '加载事件详情失败')
+    detailOpen.value = false
+  } finally {
+    detailLoading.value = false
+  }
+}
+
 onMounted(loadData)
 </script>
 
@@ -74,6 +94,7 @@ onMounted(loadData)
         <div>
           <h1>{{ session.class_name }} 课堂复盘</h1>
           <p>开始时间：{{ session.started_at || '-' }}</p>
+          <p>结束时间：{{ session.ended_at || '监控尚未正常结束' }}</p>
         </div>
         <div class="summary-grid">
           <div><span>学生</span><strong>{{ session.total_seat_count }}</strong></div>
@@ -96,6 +117,7 @@ onMounted(loadData)
                 <p>{{ event.reason || '等待模型分析' }}</p>
               </div>
               <a-tag :color="event.level === '警告' ? 'red' : 'orange'">{{ event.level }}</a-tag>
+              <a-button type="link" @click="openEventDetail(event)">查看详情</a-button>
             </article>
           </div>
           <a-empty v-else description="暂无异常事件" />
@@ -119,6 +141,27 @@ onMounted(loadData)
         </section>
       </main>
     </a-spin>
+
+    <a-modal v-model:open="detailOpen" title="异常事件详情" width="900px" :footer="null">
+      <a-spin :spinning="detailLoading">
+        <div v-if="eventDetail" class="event-detail">
+          <div class="detail-summary">
+            <strong>{{ eventDetail.seat }} · {{ eventDetail.label || eventDetail.status }}</strong>
+            <a-tag :color="eventDetail.level === '警告' ? 'red' : 'orange'">{{ eventDetail.level }}</a-tag>
+            <span>{{ eventDetail.alert_start_time }}</span>
+          </div>
+          <p>{{ eventDetail.reason || '暂无复核说明' }}</p>
+          <div v-if="eventDetail.frames?.length" class="frame-grid">
+            <article v-for="frame in eventDetail.frames" :key="frame.frame_index" class="frame-card">
+              <img v-if="frame.focus_image_url" :src="mediaUrl(frame.focus_image_url)" alt="event frame" />
+              <strong>帧 {{ frame.frame_index + 1 }} · {{ frame.seat?.status_text || frame.seat?.status }}</strong>
+              <span>{{ frame.time || '-' }}</span>
+            </article>
+          </div>
+          <a-empty v-else description="暂无关联截图帧" />
+        </div>
+      </a-spin>
+    </a-modal>
   </div>
 </template>
 
@@ -195,13 +238,46 @@ p {
 }
 .event-row {
   display: grid;
-  grid-template-columns: 120px minmax(0, 1fr) auto;
+  grid-template-columns: 120px minmax(0, 1fr) auto auto;
   gap: 12px;
   align-items: center;
   padding: 10px;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
   background: var(--bg-elevated);
+}
+.event-detail {
+  display: grid;
+  gap: 14px;
+}
+.detail-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.frame-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.frame-card {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+}
+.frame-card img {
+  width: 100%;
+  max-height: 260px;
+  object-fit: contain;
+  background: var(--bg-primary);
+}
+.frame-card span {
+  color: var(--text-muted);
+  font-size: 12px;
 }
 .event-row img {
   width: 120px;
@@ -225,6 +301,10 @@ label {
   }
   .summary-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .event-row,
+  .frame-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

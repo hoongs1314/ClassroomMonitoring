@@ -1,9 +1,11 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from core.database import get_db
+from core.date_utils import parse_date_range
 from core.dependencies import get_current_context, is_admin, parse_header_int
 from domain.models import EduClass, EduTeacher, EduTeacherClass, MonitorBehaviorEvent, MonitorEventFrame, MonitorSession, MonitorTeachingReview
 
@@ -97,6 +99,8 @@ def teacher_classes(context = Depends(get_current_context), db: Session = Depend
 @router.get("/sessions")
 def teacher_sessions(
 	x_class_id = Header(default = None, alias = "X-Class-Id"),
+	x_start_date = Header(default = None, alias = "X-Start-Date"),
+	x_end_date = Header(default = None, alias = "X-End-Date"),
 	x_page_no = Header(default = "1", alias = "X-Page-No"),
 	x_page_size = Header(default = "20", alias = "X-Page-Size"),
 	context = Depends(get_current_context),
@@ -105,21 +109,54 @@ def teacher_sessions(
 	class_id = parse_header_int(x_class_id, "X-Class-Id")
 	page_no = max(parse_header_int(x_page_no, "X-Page-No") or 1, 1)
 	page_size = min(max(parse_header_int(x_page_size, "X-Page-Size") or 20, 1), 100)
+	try:
+		start_at, end_at = parse_date_range(x_start_date, x_end_date)
+	except ValueError as exc:
+		raise HTTPException(status_code = 400, detail = str(exc)) from exc
 	allowed = _allowed_class_ids(db, context)
 	query = db.query(MonitorSession)
 	if allowed is not None:
 		if not allowed:
-			return { "ok": True, "total": 0, "items": [] }
+			return {
+				"ok": True,
+				"total": 0,
+				"page_no": page_no,
+				"page_size": page_size,
+				"summary": { "session_count": 0, "class_count": 0, "warning_count": 0, "notice_count": 0, "event_count": 0 },
+				"items": [],
+			}
 		query = query.filter(MonitorSession.class_id.in_(allowed))
 	if class_id:
 		if allowed is not None and class_id not in allowed:
 			raise HTTPException(status_code = 403, detail = "无权访问该班级")
 		query = query.filter(MonitorSession.class_id == class_id)
+	if start_at:
+		query = query.filter(MonitorSession.started_at >= start_at)
+	if end_at:
+		query = query.filter(MonitorSession.started_at < end_at)
+
+	# 汇总与列表使用同一组权限、班级和日期条件，避免教师看到越权统计。
+	summary_row = query.with_entities(
+		func.count(MonitorSession.id),
+		func.count(func.distinct(MonitorSession.class_id)),
+		func.coalesce(func.sum(MonitorSession.warning_count), 0),
+		func.coalesce(func.sum(MonitorSession.notice_count), 0),
+		func.coalesce(func.sum(MonitorSession.event_count), 0),
+	).one()
 	total = query.count()
 	rows = query.order_by(MonitorSession.started_at.desc()).offset((page_no - 1) * page_size).limit(page_size).all()
 	return {
 		"ok": True,
 		"total": total,
+		"page_no": page_no,
+		"page_size": page_size,
+		"summary": {
+			"session_count": int(summary_row[0] or 0),
+			"class_count": int(summary_row[1] or 0),
+			"warning_count": int(summary_row[2] or 0),
+			"notice_count": int(summary_row[3] or 0),
+			"event_count": int(summary_row[4] or 0),
+		},
 		"items": [
 			{
 				"id": row.id,

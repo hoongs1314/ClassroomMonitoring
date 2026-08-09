@@ -1,18 +1,18 @@
 # 课堂异常行为智能检测系统
 
 ## 核心功能
-- SAHI分片
-- detect座位检测
-- pose姿态检测，头肩位置判断
-- VLM分析，语义化内容输出
+- YOLO与SAHI分片行为检测
+- 匈牙利算法座位匹配与滑动窗口告警
+- VLM异常截图复核与语义说明
+- 历史课堂按班级、日期范围查询和汇总
+- 异常事件详情与教师教学复盘
 
 ## 核心文件
 - backend/main.py
   - FastAPI 服务入口 (端口8997)
 - backend/services/monitor_service.py
-  - 检测链路核心：SAHI分片
-  - detect座位检测
-  - Pose姿态检测
+  - 检测链路核心：YOLO与SAHI分片
+  - 座位匹配、连续状态判定和事件持久化
   - VLM分析
 - backend/core
   - 配置、数据库、鉴权依赖和启动引导
@@ -71,6 +71,8 @@ mysql -u root -p classroom_monitoring < db/001_init_mysql.sql
 ```powershell
 .\scripts\run-tests.ps1 -SkipFrontend
 ```
+
+教师端历史页面支持按班级和日期范围筛选课堂记录，后端采用服务端分页，并返回筛选范围内的课堂、班级、警告、提示和事件汇总。复盘页面可进一步查看异常事件关联截图帧。
 
 ## Docker 启动
 
