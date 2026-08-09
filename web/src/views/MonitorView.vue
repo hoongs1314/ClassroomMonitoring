@@ -15,6 +15,7 @@ import { useApi } from '@/composables/useApi'
 import VideoPlayer from '@/components/monitor/VideoPlayer.vue'
 import StatsCard from '@/components/monitor/StatsCard.vue'
 import EventList from '@/components/monitor/EventList.vue'
+import EventDetailModal from '@/components/monitor/EventDetailModal.vue'
 import SeatMapModal from '@/components/monitor/SeatMapModal.vue'
 
 const { status, isConnected } = useWebSocket()
@@ -28,6 +29,8 @@ const props = defineProps({
 const starting = ref(false)
 const monitorStarted = ref(false)
 const showSeatMap = ref(false)
+const showEventDetail = ref(false)
+const selectedEventId = ref(null)
 
 watch(() => status.value?.is_running, (val) => {
   if (val != null) monitorStarted.value = val
@@ -129,6 +132,11 @@ async function stopMonitor() {
 function openSeatMap() {
   showSeatMap.value = true
 }
+
+function openEventDetail(eventId) {
+  selectedEventId.value = eventId
+  showEventDetail.value = true
+}
 </script>
 
 <template>
@@ -222,11 +230,12 @@ clickable
               识别事件
             </h2>
           </div>
-          <EventList :events="events" />
+          <EventList :events="events" @select="openEventDetail" />
         </section>
       </aside>
     </main>
     <SeatMapModal v-model:open="showSeatMap" :seat-map-url="seatMapUrl" :current-class="status?.current_class || ''" :seats="seats" :img-w="imgSize.w" :img-h="imgSize.h" />
+    <EventDetailModal v-model:open="showEventDetail" :event-id="selectedEventId" />
   </div>
 </template>
 
@@ -374,12 +383,23 @@ clickable
 
 /* === 响应式 === */
 @media (max-width: 1100px) {
+  .monitor-view {
+    overflow: auto;
+  }
   .main-grid {
+    flex: none;
     grid-template-columns: 1fr;
+    min-height: auto;
   }
   .side-rail {
     grid-template-rows: auto auto;
     max-height: none;
+  }
+  .video-panel {
+    min-height: 360px;
+  }
+  .event-panel {
+    min-height: 320px;
   }
 }
 
@@ -388,6 +408,8 @@ clickable
     padding: 8px;
   }
   .topbar {
+    align-items: flex-start;
+    flex-wrap: wrap;
     padding: 12px 16px;
   }
   .brand-title {
@@ -397,6 +419,8 @@ clickable
     display: none;
   }
   .top-actions {
+    width: 100%;
+    justify-content: space-between;
     flex-wrap: wrap;
     gap: 8px;
   }

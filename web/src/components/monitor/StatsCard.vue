@@ -74,8 +74,8 @@ const colorClass = {
 <style scoped>
 .stats-card {
   position: relative;
-  min-height: 130px;
-  padding: 16px;
+  min-height: 118px;
+  padding: 12px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-default);
   background: var(--bg-card);
@@ -113,19 +113,19 @@ const colorClass = {
 .stats-head {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 34px;
+  gap: 6px;
+  min-height: 28px;
 }
 .stats-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: var(--color-primary-soft);
   color: var(--color-primary);
-  font-size: 18px;
+  font-size: 15px;
 }
 .card-danger .stats-icon {
   background: var(--color-danger-soft);
@@ -141,16 +141,18 @@ const colorClass = {
 }
 
 .stats-label {
-  font-size: 14px;
+  overflow: hidden;
+  font-size: 12px;
   font-weight: 600;
+  text-overflow: ellipsis;
   color: var(--text-secondary);
   white-space: nowrap;
 }
 
 .stats-value {
-  margin-top: 12px;
+  margin-top: 10px;
   font-family: var(--font-mono);
-  font-size: 52px;
+  font-size: clamp(34px, 3vw, 46px);
   font-weight: 700;
   line-height: 1.1;
   color: var(--color-primary);

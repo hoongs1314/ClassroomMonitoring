@@ -284,4 +284,17 @@ function handleLogout() {
 .toggle-btn:hover {
   color: var(--text-primary) !important;
 }
+
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 1000;
+    height: 100dvh;
+  }
+
+  .sidebar:not(.collapsed) {
+    box-shadow: var(--shadow-elevated);
+  }
+}
 </style>

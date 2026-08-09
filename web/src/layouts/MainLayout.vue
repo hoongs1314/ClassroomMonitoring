@@ -1,7 +1,7 @@
 <script setup>
-import { ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
-import { useApi } from '@/composables/useApi'
+import { syncMediaSession, useApi } from '@/composables/useApi'
 import AppSidebar from '@/components/common/AppSidebar.vue'
 
 const { requestJson } = useApi()
@@ -9,13 +9,30 @@ const { requestJson } = useApi()
 const sidebarCollapsed = ref(false)
 const currentClass = ref('')
 const currentClassCode = ref('')
+let mobileQuery
+
+function syncSidebarForViewport(event) {
+  // 小屏以图标栏起始，展开时作为覆盖式导航，避免挤压内容区。
+  sidebarCollapsed.value = event.matches
+}
+
+onMounted(() => {
+  mobileQuery = window.matchMedia('(max-width: 768px)')
+  syncSidebarForViewport(mobileQuery)
+	mobileQuery.addEventListener('change', syncSidebarForViewport)
+	void syncMediaSession()
+})
+
+onBeforeUnmount(() => {
+  mobileQuery?.removeEventListener('change', syncSidebarForViewport)
+})
 
 async function handleSelectClass(cls, classInfo = {}, synchronizeRuntime = true) {
 	const previousClass = currentClass.value
 	const previousClassCode = currentClassCode.value
-  currentClass.value = cls
-  currentClassCode.value = classInfo.class_code || ''
-  if (!synchronizeRuntime) return
+	currentClass.value = cls
+	currentClassCode.value = classInfo.class_code || ''
+	if (!synchronizeRuntime) return
   try {
     await requestJson('/api/switch_class', {
       method: 'POST',
@@ -60,7 +77,13 @@ async function handleSelectClass(cls, classInfo = {}, synchronizeRuntime = true)
 
 @media (max-width: 768px) {
   .app-layout {
-    flex-direction: column;
+    display: block;
+  }
+
+  .app-content {
+    height: 100%;
+    width: calc(100% - var(--sidebar-collapsed-width));
+    margin-left: var(--sidebar-collapsed-width);
   }
 }
 </style>

@@ -42,13 +42,6 @@ watch([() => props.open, () => props.eventData, () => props.eventId], async ([is
   }
 }, { immediate: true })
 
-const levelColor = (level) => {
-  if (level === 'STRONG') return 'red'
-  if (level === 'WEAK') return 'gold'
-  if (level === 'NORMAL') return 'green'
-  return 'default'
-}
-
 const statusText = (v) => {
   const map = {
     DESK_LYING: '疑似睡觉',
@@ -62,7 +55,12 @@ const statusText = (v) => {
   return map[v] || v || '-'
 }
 
-const statusColor = (v) => (v === 'DESK_LYING' ? 'red' : 'blue')
+const statusColor = (v) => {
+  if (v === 'DESK_LYING' || v === 'EATING') return 'red'
+  if (v === 'HEAD_DOWN' || v === 'TURNING_HEAD') return 'orange'
+  if (v === 'NORMAL') return 'green'
+  return 'default'
+}
 
 const formatRatio = (v) => (v != null ? Number(v).toFixed(4) : '-')
 </script>
@@ -131,8 +129,8 @@ const formatRatio = (v) => (v != null ? Number(v).toFixed(4) : '-')
             </div>
             <div class="frame-info">
               <div class="frame-top">
-                <strong>第 {{ frame.frame_index }} 帧</strong>
-                <a-tag :color="levelColor(frame.seat?.status)">
+                <strong>第 {{ frame.frame_index + 1 }} 帧</strong>
+                <a-tag :color="statusColor(frame.seat?.status)">
                   {{ frame.seat?.status_text || statusText(frame.seat?.status) }}
                 </a-tag>
               </div>

@@ -85,6 +85,7 @@ function getSourceLabel(e) {
         v-for="item in filteredEvents"
         :key="getEventId(item)"
         class="event-card"
+        :class="{ 'without-image': !(item.list_image_url || item.url) }"
         :style="{ borderLeftColor: levelBorderColor(item.level) }"
         role="option"
         tabindex="0"
@@ -103,12 +104,15 @@ function getSourceLabel(e) {
 
         <div class="event-body">
           <div class="event-seat">
-            座位：{{ getSeatName(item) }}
+            <strong>座位 {{ getSeatName(item) }}</strong>
             <a-tag v-if="item.level" :color="item.level === '警告' ? 'red' : 'orange'" size="small">
               {{ item.level }}
             </a-tag>
           </div>
-          <div class="event-source">来源：{{ getSourceLabel(item) }}</div>
+          <div class="event-meta">
+            <span>来源：{{ getSourceLabel(item) }}</span>
+            <span>{{ item.alert_start_time || item.time || '时间待同步' }}</span>
+          </div>
           <div class="event-action">
             智能分析：{{ item.reason || '等待模型分析...' }}
           </div>
@@ -169,6 +173,9 @@ function getSourceLabel(e) {
   border-color: var(--border-hover);
   box-shadow: var(--shadow-glow-primary);
 }
+.event-card.without-image {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
 
 .event-image {
   position: relative;
@@ -199,12 +206,16 @@ function getSourceLabel(e) {
   min-width: 0;
 }
 .event-seat,
-.event-source,
+.event-meta,
 .event-action {
   font-size: 14px;
   color: var(--text-secondary);
   line-height: 1.7;
 }
+.event-seat { display: flex; align-items: center; gap: 6px; color: var(--text-primary); }
+.event-seat strong { font-weight: 700; }
+.event-meta { display: flex; gap: 8px; color: var(--text-muted); font-size: 12px; }
+.event-action { display: -webkit-box; overflow: hidden; margin-top: 2px; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .event-action strong {
   color: var(--color-danger);
   font-weight: 700;
@@ -237,5 +248,33 @@ function getSourceLabel(e) {
   font-size: 40px;
   opacity: 0.3;
   margin-bottom: 10px;
+}
+
+@media (max-width: 640px) {
+  .filter-bar :deep(.ant-radio-group) {
+    display: flex;
+    flex-wrap: wrap;
+  }
+  .event-card {
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 10px;
+  }
+  .event-card.without-image {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .event-image {
+    width: 96px;
+    height: 54px;
+  }
+  .event-card > :deep(.ant-tag) {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .event-card.without-image > :deep(.ant-tag) {
+    grid-column: 2;
+  }
+  .event-meta {
+    flex-wrap: wrap;
+  }
 }
 </style>
