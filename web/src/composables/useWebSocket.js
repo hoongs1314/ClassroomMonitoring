@@ -1,6 +1,6 @@
 import { shallowRef, ref, onMounted, onUnmounted } from 'vue'
 import { resolveApiBase, resolveWebSocketBase } from './apiBase'
-import { handleUnauthorized } from './useApi'
+import { handleUnauthorized, syncMediaSession } from './useApi'
 
 const status = shallowRef(null)
 const isConnected = ref(false)
@@ -14,11 +14,9 @@ let activeUsers = 0
 const MAX_RECONNECT_DELAY = 30000
 
 function getWsUrl() {
-  const apiBase = resolveApiBase(window.MONITOR_API_BASE, import.meta.env.DEV)
-  const wsBase = resolveWebSocketBase(apiBase, window.location.origin)
-  const token = localStorage.getItem('monitor_access_token') || ''
-  const suffix = token ? `?token=${encodeURIComponent(token)}` : ''
-  return `${wsBase}/ws${suffix}`
+	const apiBase = resolveApiBase(window.MONITOR_API_BASE, import.meta.env.DEV, window.location)
+	const wsBase = resolveWebSocketBase(apiBase, window.location.origin)
+	return `${wsBase}/ws`
 }
 
 function scheduleReconnect(connectFn) {
@@ -31,10 +29,15 @@ function scheduleReconnect(connectFn) {
 }
 
 export function useWebSocket() {
-  const connect = () => {
-    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
-      return
-    }
+	const connect = async () => {
+		if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+			return
+		}
+		if (!await syncMediaSession()) {
+			error.value = 'WebSocket 鉴权准备失败'
+			if (activeUsers > 0 && localStorage.getItem('monitor_access_token')) scheduleReconnect(connect)
+			return
+		}
 
     error.value = null
     const url = getWsUrl()
@@ -81,9 +84,16 @@ export function useWebSocket() {
     ws.onclose = (event) => {
       isConnected.value = false
       ws = null
-      if (event.code === 1008) {
-        handleUnauthorized()
-        return
+		if (event.code === 1008) {
+			void syncMediaSession(true).then((ready) => {
+				if (ready && activeUsers > 0) {
+					reconnectAttempts++
+					scheduleReconnect(connect)
+					return
+				}
+				handleUnauthorized()
+			})
+			return
       }
       if (activeUsers > 0) {
         reconnectAttempts++

@@ -6,6 +6,7 @@ from datetime import datetime, time as clock_time
 from uuid import uuid4
 
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 
 from core.database import db_session
 from domain.models import (
@@ -123,7 +124,14 @@ def synchronize_scheduled_sessions(now = None):
 				started_at = start_at,
 				last_heartbeat_at = now,
 			)
-			db.add(session)
+			# 应用层预检查无法抵御多实例竞态；数据库唯一约束为最终边界。
+			try:
+				with db.begin_nested():
+					db.add(session)
+					db.flush()
+			except IntegrityError:
+				logger.info("[Schedule] 课表%s的计划课次已由其他实例创建", schedule.id)
+				continue
 			created += 1
 
 		# 已结束的计划课次转为待分析。此处不伪造分析结论，Worker 完成推理后再生成汇总和报告。

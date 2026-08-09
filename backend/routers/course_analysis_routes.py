@@ -1,6 +1,6 @@
 """教师教学课程分析串联、改进措施、汇总与报告接口。"""
 
-from datetime import datetime
+from datetime import date, datetime
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -33,6 +33,16 @@ router = APIRouter(prefix = "/api/teacher", tags = ["course-analysis"])
 
 def _text(body, key):
 	return str((body or {}).get(key, "") or "").strip()
+
+
+def _optional_date(body, key, title):
+	value = _text(body, key)
+	if not value:
+		return None
+	try:
+		return date.fromisoformat(value)
+	except ValueError as exc:
+		raise HTTPException(status_code = 400, detail = f"{title}必须为 YYYY-MM-DD") from exc
 
 
 def _bool(body, key, default = False):
@@ -431,8 +441,10 @@ async def refresh_aggregate(course_id: int, request: Request, context = Depends(
 	_ensure_course_access(db, context, course_id, writable = True)
 	body = await request.json()
 	scope_type = _text(body, "scope_type").upper() or "TERM"
+	start_date = _optional_date(body, "start_date", "汇总开始日期")
+	end_date = _optional_date(body, "end_date", "汇总结束日期")
 	try:
-		aggregate = refresh_course_aggregate(db, course_id, scope_type)
+		aggregate = refresh_course_aggregate(db, course_id, scope_type, start_date, end_date)
 	except ValueError as exc:
 		raise HTTPException(status_code = 400, detail = str(exc)) from exc
 	db.commit()

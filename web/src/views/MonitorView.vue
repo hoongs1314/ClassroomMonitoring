@@ -11,7 +11,7 @@ import {
   SafetyCertificateOutlined,
 } from '@ant-design/icons-vue'
 import { useWebSocket } from '@/composables/useWebSocket'
-import { getAccessToken, useApi } from '@/composables/useApi'
+import { useApi } from '@/composables/useApi'
 import VideoPlayer from '@/components/monitor/VideoPlayer.vue'
 import StatsCard from '@/components/monitor/StatsCard.vue'
 import EventList from '@/components/monitor/EventList.vue'
@@ -85,10 +85,7 @@ const phaseType = computed(() => {
 
 const seatMapUrl = computed(() => status.value?.seat_map_url || '')
 
-const videoFeedUrl = computed(() => {
-  const token = getAccessToken()
-  return token ? `/video_feed?token=${encodeURIComponent(token)}` : '/video_feed'
-})
+const videoFeedUrl = computed(() => '/video_feed')
 
 const imgSize = computed(() => ({
   w: status.value?.img_w || 1920,

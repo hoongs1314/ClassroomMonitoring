@@ -36,7 +36,10 @@ class MonitorServiceTests(unittest.TestCase):
 	def setUp(self):
 		self.original_seats = monitor_service.state["seats"]
 		self.original_running = monitor_service.state["is_running"]
+		self.original_phase = monitor_service.state["phase"]
+		self.original_error = monitor_service.state["error"]
 		self.original_runtime_id = monitor_service.persist_state["runtime_id"]
+		self.original_session_id = monitor_service.persist_state["session_id"]
 		self.original_detect_history = dict(monitor_service.detect_history)
 		self.original_normal_streak = dict(monitor_service.normal_streak)
 		self.original_alert_levels = dict(monitor_service.alert_level_map)
@@ -47,7 +50,10 @@ class MonitorServiceTests(unittest.TestCase):
 	def tearDown(self):
 		monitor_service.state["seats"] = self.original_seats
 		monitor_service.state["is_running"] = self.original_running
+		monitor_service.state["phase"] = self.original_phase
+		monitor_service.state["error"] = self.original_error
 		monitor_service.persist_state["runtime_id"] = self.original_runtime_id
+		monitor_service.persist_state["session_id"] = self.original_session_id
 		monitor_service.detect_history.clear()
 		monitor_service.detect_history.update(self.original_detect_history)
 		monitor_service.normal_streak.clear()
@@ -117,3 +123,15 @@ class MonitorServiceTests(unittest.TestCase):
 			monitor_service.handle_review_result(("{}", {}, 1, 1), np.zeros((1, 1, 3)), "old-runtime")
 
 		apply_result.assert_not_called()
+
+	def test_runtime_failure_is_exposed_without_a_persisted_session(self):
+		monitor_service.state["is_running"] = True
+		monitor_service.persist_state["runtime_id"] = "active-runtime"
+		monitor_service.persist_state["session_id"] = None
+
+		changed = monitor_service.mark_runtime_failed("active-runtime", "视频源读取失败")
+
+		self.assertTrue(changed)
+		self.assertFalse(monitor_service.state["is_running"])
+		self.assertEqual(monitor_service.state["phase"], "error")
+		self.assertIn("视频源读取失败", monitor_service.state["error"])

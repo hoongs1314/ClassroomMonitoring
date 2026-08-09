@@ -1,9 +1,11 @@
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from core.auth_utils import create_access_token, create_refresh_token, decode_token, hash_refresh_token, verify_password
+from core.config import settings
 from core.database import get_db
 from core.dependencies import get_current_context
 from domain.models import EduTeacher, EduTeacherClass, SysAuthToken, SysLoginLog, SysRole, SysUser, SysUserRole
@@ -12,6 +14,29 @@ from domain.models import EduTeacher, EduTeacherClass, SysAuthToken, SysLoginLog
 router = APIRouter(prefix = "/api/auth", tags = ["auth"])
 MAX_FAILED_LOGIN_COUNT = 5
 LOGIN_LOCK_MINUTES = 15
+MEDIA_COOKIE_NAME = "monitor_media_token"
+
+
+def _set_media_cookie(response, access_token):
+	"""媒体元素无法携带 Authorization，因此仅通过 HttpOnly Cookie 传递当前访问令牌。"""
+	response.set_cookie(
+		key = MEDIA_COOKIE_NAME,
+		value = access_token,
+		max_age = settings.access_token_expire_minutes * 60,
+		httponly = True,
+		secure = settings.media_cookie_secure,
+		samesite = "lax",
+		path = "/",
+	)
+
+
+def _clear_media_cookie(response):
+	response.delete_cookie(
+		key = MEDIA_COOKIE_NAME,
+		path = "/",
+		secure = settings.media_cookie_secure,
+		samesite = "lax",
+	)
 
 
 def _client_ip(request):
@@ -27,7 +52,13 @@ def _user_payload(db, user, roles = None):
 	teacher = db.query(EduTeacher).filter(EduTeacher.user_id == user.id).first()
 	class_scopes = []
 	if teacher:
-		rows = db.query(EduTeacherClass).filter(EduTeacherClass.teacher_id == teacher.id, EduTeacherClass.enabled == 1).all()
+		today = datetime.now().date()
+		rows = db.query(EduTeacherClass).filter(
+			EduTeacherClass.teacher_id == teacher.id,
+			EduTeacherClass.enabled == 1,
+			or_(EduTeacherClass.start_date.is_(None), EduTeacherClass.start_date <= today),
+			or_(EduTeacherClass.end_date.is_(None), EduTeacherClass.end_date >= today),
+		).all()
 		for row in rows:
 			class_scopes.append(
 				{
@@ -71,7 +102,7 @@ def _write_login_log(db, user, username, result, reason, request):
 
 
 @router.post("/login")
-async def login(request: Request, db: Session = Depends(get_db)):
+async def login(request: Request, response: Response, db: Session = Depends(get_db)):
 	body = await request.json()
 	username = (body or {}).get("username", "").strip()
 	password = (body or {}).get("password", "")
@@ -134,6 +165,7 @@ async def login(request: Request, db: Session = Depends(get_db)):
 	)
 	_write_login_log(db, user, username, "SUCCESS", None, request)
 	db.commit()
+	_set_media_cookie(response, access_token)
 	return {
 		"ok": True,
 		"token_type": "Bearer",
@@ -144,7 +176,7 @@ async def login(request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/logout")
-def logout(context = Depends(get_current_context), db: Session = Depends(get_db)):
+def logout(response: Response, context = Depends(get_current_context), db: Session = Depends(get_db)):
 	jti = context["payload"].get("jti")
 	if jti:
 		row = db.query(SysAuthToken).filter(SysAuthToken.token_jti == jti).first()
@@ -152,11 +184,13 @@ def logout(context = Depends(get_current_context), db: Session = Depends(get_db)
 			row.revoked_at = datetime.utcnow()
 			row.refresh_token_hash = None
 			db.commit()
+	_clear_media_cookie(response)
 	return { "ok": True }
 
 
 @router.post("/refresh")
 def refresh_token(
+	response: Response,
 	x_refresh_token = Header(default = None, alias = "X-Refresh-Token"),
 	db: Session = Depends(get_db),
 ):
@@ -199,7 +233,15 @@ def refresh_token(
 		)
 	)
 	db.commit()
+	_set_media_cookie(response, access_token)
 	return { "ok": True, "token_type": "Bearer", "access_token": access_token, "refresh_token": refresh_token }
+
+
+@router.post("/media-session")
+def refresh_media_session(response: Response, context = Depends(get_current_context)):
+	"""为图片、视频流和 WebSocket 刷新 HttpOnly 媒体鉴权 Cookie。"""
+	_set_media_cookie(response, context["token"])
+	return { "ok": True }
 
 
 @router.get("/me")

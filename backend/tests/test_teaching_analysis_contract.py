@@ -30,7 +30,7 @@ from domain.models import (
 	TeachingImprovementAction,
 )
 from services.schedule_service import _parse_clock
-from services.teaching_analysis_service import _duration_seconds
+from services.teaching_analysis_service import _duration_seconds, _next_month_start
 from routers.course_analysis_routes import _is_schedule_current, _serialize_course
 from routers.teacher_routes import _review_score, teacher_sessions
 
@@ -124,6 +124,10 @@ class TeachingAnalysisContractTests(unittest.TestCase):
 		started_at = datetime(2026, 9, 1, 8, 0, 0)
 		self.assertEqual(_duration_seconds(started_at, datetime(2026, 9, 1, 8, 45, 0)), 2700)
 		self.assertEqual(_duration_seconds(started_at, datetime(2026, 9, 1, 7, 59, 59)), 0)
+
+	def test_month_period_uses_next_month_as_exclusive_end(self):
+		self.assertEqual(_next_month_start(date(2026, 12, 1)), date(2027, 1, 1))
+		self.assertEqual(_next_month_start(date(2026, 9, 1)), date(2026, 10, 1))
 
 	def test_review_score_is_limited_to_valid_range(self):
 		self.assertEqual(_review_score({ "teaching_effect_score": "88.5" }), Decimal("88.5"))

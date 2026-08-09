@@ -6,6 +6,10 @@ test('开发环境未配置地址时使用本地后端', () => {
   assert.equal(resolveApiBase('', true), 'http://localhost:8997')
 })
 
+test('开发环境使用浏览器当前主机名，保证媒体 Cookie 同站', () => {
+  assert.equal(resolveApiBase('', true, { protocol: 'http:', hostname: '127.0.0.1' }), 'http://127.0.0.1:8997')
+})
+
 test('生产环境未配置地址时使用同源反向代理', () => {
   assert.equal(resolveApiBase('', false), '')
 })

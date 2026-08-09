@@ -13,6 +13,7 @@ services:
       - mysql_data:/var/lib/mysql
       - ./db/001_init_mysql.sql:/docker-entrypoint-initdb.d/001_init_mysql.sql:ro
       - ./db/002_teaching_analysis.sql:/docker-entrypoint-initdb.d/002_teaching_analysis.sql:ro
+      - ./db/006_runtime_integrity.sql:/docker-entrypoint-initdb.d/006_runtime_integrity.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 10s
@@ -39,6 +40,9 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?请在 deploy/.env.production 设置 ADMIN_PASSWORD}
       AUTO_CREATE_TABLES: "false"
       ALIYUN_API_KEY: ${ALIYUN_API_KEY:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
+      MEDIA_COOKIE_SECURE: ${MEDIA_COOKIE_SECURE:-false}
+      VLM_WORKER_COUNT: ${VLM_WORKER_COUNT:-2}
       TZ: Asia/Shanghai
     volumes:
       - ${INPUTS_DIR:-./inputs}:/app/inputs:ro

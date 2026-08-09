@@ -240,6 +240,10 @@ class EduTeacherClass(Base):
 
 class MonitorSession(Base, TimestampMixin):
 	__tablename__ = "monitor_session"
+	__table_args__ = (
+		# 计划课次由课表与计划开始时间唯一确定，手工演示课次的 NULL 值不受影响。
+		UniqueConstraint("schedule_id", "planned_started_at", name = "uk_monitor_session_schedule_start"),
+	)
 
 	id = Column(uint_bigint(), primary_key = True, autoincrement = True)
 	session_no = Column(String(64), nullable = False, unique = True)

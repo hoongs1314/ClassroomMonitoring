@@ -4,6 +4,7 @@ from datetime import datetime
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from core.database import get_db
@@ -250,6 +251,16 @@ def _check_schedule_overlap(db, row, course, weekday, start_time, end_time, enab
 			raise HTTPException(status_code = 409, detail = "同一班级存在时间重叠的有效课表")
 
 
+def _check_existing_course_schedules(db, course):
+	"""课程班级、学期或日期变更后，重新校验其已经保存的全部有效课表。"""
+	rows = db.query(EduLessonSchedule).filter(
+		EduLessonSchedule.teaching_course_id == course.id,
+		EduLessonSchedule.enabled == 1,
+	).all()
+	for schedule in rows:
+		_check_schedule_overlap(db, schedule, course, schedule.weekday, schedule.start_time, schedule.end_time, True)
+
+
 def _apply_schedule(db, row, body):
 	course_id = _int(body, "teaching_course_id", "教学课程")
 	course = _get(db, TeachingCourse, course_id, "教学课程")
@@ -283,12 +294,19 @@ def _apply_camera(db, row, body):
 	row.remark = _text(body, "remark") or None
 
 
-def _check_binding_overlap(db, row, camera_id, start_date, end_date):
-	rows = db.query(CameraClassBinding).filter(CameraClassBinding.camera_id == camera_id, CameraClassBinding.id != (row.id or 0), CameraClassBinding.enabled == 1).all()
+def _check_binding_overlap(db, row, camera_id, class_id, start_date, end_date):
+	"""一个有效期内，摄像头与班级都只能出现一次有效绑定，避免解析时随机选取来源。"""
+	rows = db.query(CameraClassBinding).filter(
+		CameraClassBinding.id != (row.id or 0),
+		CameraClassBinding.enabled == 1,
+		or_(CameraClassBinding.camera_id == camera_id, CameraClassBinding.class_id == class_id),
+	).all()
 	for other in rows:
 		other_end = other.effective_end_date
 		if (end_date is None or other.effective_start_date < end_date) and (other_end is None or start_date < other_end):
-			raise HTTPException(status_code = 400, detail = "同一摄像设备存在重叠的有效班级绑定")
+			if other.camera_id == camera_id:
+				raise HTTPException(status_code = 400, detail = "同一摄像设备存在重叠的有效班级绑定")
+			raise HTTPException(status_code = 400, detail = "同一班级存在重叠的有效摄像设备绑定")
 
 
 def _apply_binding(db, row, body):
@@ -301,7 +319,7 @@ def _apply_binding(db, row, body):
 	if end_date and end_date <= start_date:
 		raise HTTPException(status_code = 400, detail = "生效结束日期必须晚于开始日期")
 	if _bool(body, "enabled", True):
-		_check_binding_overlap(db, row, camera_id, start_date, end_date)
+		_check_binding_overlap(db, row, camera_id, class_id, start_date, end_date)
 	row.camera_id = camera_id
 	row.class_id = class_id
 	row.effective_start_date = start_date
@@ -391,6 +409,7 @@ async def update_teaching_course(course_id: int, request: Request, context = Dep
 	exists = db.query(TeachingCourse).filter(TeachingCourse.course_no == row.course_no, TeachingCourse.id != row.id).first()
 	if exists:
 		raise HTTPException(status_code = 400, detail = "教学课程编号已存在")
+	_check_existing_course_schedules(db, row)
 	db.commit()
 	terms, classes, subjects, teachers = _course_options(db)
 	return { "ok": True, "item": _serialize_course(row, terms, classes, subjects, teachers) }

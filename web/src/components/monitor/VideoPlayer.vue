@@ -1,11 +1,11 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import {
   PauseOutlined,
   PlayCircleFilled,
   VideoCameraFilled,
 } from '@ant-design/icons-vue'
-import { useApi } from '@/composables/useApi'
+import { syncMediaSession, useApi } from '@/composables/useApi'
 
 const props = defineProps({
   mode: { type: String, default: 'mjpeg' },
@@ -23,6 +23,31 @@ const video = ref(null)
 const playing = ref(false)
 const volume = ref(0)
 const videoProgress = ref(0)
+const liveMjpegUrl = ref('')
+let streamRetryTimer = null
+
+async function loadMjpegStream() {
+  if (!props.mjpegUrl || !await syncMediaSession()) {
+    liveMjpegUrl.value = ''
+    return
+  }
+  // 仅加入无敏感信息的缓存键，确保令牌刷新或服务端主动断流后会建立新连接。
+  liveMjpegUrl.value = `${mediaUrl(props.mjpegUrl)}${props.mjpegUrl.includes('?') ? '&' : '?'}v=${Date.now()}`
+}
+
+function retryMjpegStream() {
+  if (streamRetryTimer) return
+  streamRetryTimer = setTimeout(() => {
+    streamRetryTimer = null
+    loadMjpegStream()
+  }, 1000)
+}
+
+watch(() => props.mjpegUrl, loadMjpegStream, { immediate: true })
+
+onUnmounted(() => {
+  if (streamRetryTimer) clearTimeout(streamRetryTimer)
+})
 
 const statusMap = {
   NORMAL: { c: '#22C55E', t: '正常' },
@@ -100,10 +125,11 @@ function seekVideo(val) {
 
       <!-- MJPEG 流 -->
       <img
-        v-if="mode === 'mjpeg' && mjpegUrl"
-        :src="mediaUrl(mjpegUrl)"
-        class="feed"
-        alt="监控画面"
+		v-if="mode === 'mjpeg' && mjpegUrl"
+		:src="liveMjpegUrl"
+		class="feed"
+		alt="监控画面"
+		@error="retryMjpegStream"
       />
 
       <!-- Video 元素 -->

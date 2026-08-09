@@ -1,8 +1,8 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from core.database import get_db
@@ -14,18 +14,22 @@ from domain.models import EduClass, EduTeacher, EduTeacherClass, MonitorBehavior
 router = APIRouter(prefix = "/api/teacher", tags = ["teacher"])
 
 
-def _allowed_class_ids(db, context):
+def _allowed_class_ids(db, context, effective_date = None):
+	"""返回指定日期仍有效的班级范围；实时页面使用当天，历史课次使用课次日期。"""
 	if is_admin(context):
 		return None
 	teacher = context.get("teacher")
 	if not teacher:
 		return []
+	effective_date = effective_date or date.today()
 	rows = (
 		db.query(EduTeacherClass.class_id)
 		.filter(
 			EduTeacherClass.teacher_id == teacher.id,
 			EduTeacherClass.enabled == 1,
 			EduTeacherClass.can_view_monitor == 1,
+			or_(EduTeacherClass.start_date.is_(None), EduTeacherClass.start_date <= effective_date),
+			or_(EduTeacherClass.end_date.is_(None), EduTeacherClass.end_date >= effective_date),
 		)
 		.distinct()
 		.all()
@@ -45,7 +49,8 @@ def _ensure_session_access(db, context, session_id):
 		course = db.query(TeachingCourse).filter(TeachingCourse.id == session.teaching_course_id, TeachingCourse.teacher_id == teacher.id).first()
 		if course:
 			return session
-	allowed = _allowed_class_ids(db, context)
+	session_date = (session.started_at or datetime.now()).date()
+	allowed = _allowed_class_ids(db, context, session_date)
 	if allowed is not None and session.class_id not in allowed:
 		raise HTTPException(status_code = 403, detail = "无权访问该班级监控记录")
 	return session
@@ -85,6 +90,8 @@ def _ensure_review_teacher(db, context, session, teacher_id = None):
 			EduTeacherClass.class_id == session.class_id,
 			EduTeacherClass.enabled == 1,
 			EduTeacherClass.can_review == 1,
+			or_(EduTeacherClass.start_date.is_(None), EduTeacherClass.start_date <= (session.started_at or datetime.now()).date()),
+			or_(EduTeacherClass.end_date.is_(None), EduTeacherClass.end_date >= (session.started_at or datetime.now()).date()),
 		)
 		.first()
 	)

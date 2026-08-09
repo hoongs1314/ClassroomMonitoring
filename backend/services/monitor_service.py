@@ -7,7 +7,7 @@ import time
 import cv2
 import numpy as np
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from threading import RLock
 from uuid import uuid4
@@ -73,6 +73,8 @@ DESK_LYING_WARN_COUNT = 2
 OTHER_ALERT_COUNT = 3
 # 连续NORMAL次数 ≥ 此值 → 恢复
 NORMAL_RECOVER_COUNT = 2
+# 异常退出后仅回收长时间未上报心跳的会话，避免误伤并行服务实例。
+INTERRUPTED_SESSION_TIMEOUT_SECONDS = 120
 
 # 检测类别 → 状态码
 CATEGORY_TO_STATUS = {
@@ -137,6 +139,8 @@ state = {
 	"seats": [],
 	"events": [],
 	"counts": { "total": 0, "focus": 0, "normal": 0 },
+	"phase": "idle",
+	"error": "",
 }
 
 
@@ -213,18 +217,24 @@ def refresh_runtime_class_config():
 
 
 def detection_analysis_loop():
-	"""持续执行检测和 VLM 分析"""
-	# sahi加载detect模型
-	detector = AutoDetectionModel.from_pretrained(
-		model_type = "ultralytics",
-		model_path = str(ROOT_PATH / "models" / "gmn26n-behavior.pt"),
-		confidence_threshold = 0.25,
-		image_size = 640,
-	)
-	logger.info("[Detect] 初始化完成")
-
+	"""持续执行检测；初始化或推理失败后保留线程并将当前课次显式标记为失败。"""
+	detector = None
 	seat_id_counter = 1
 	while True:
+		if detector is None:
+			try:
+				detector = AutoDetectionModel.from_pretrained(
+					model_type = "ultralytics",
+					model_path = str(ROOT_PATH / "models" / "gmn26n-behavior.pt"),
+					confidence_threshold = 0.25,
+					image_size = 640,
+				)
+				logger.info("[Detect] 初始化完成")
+			except Exception as exc:
+				logger.exception("[Detect] 模型初始化失败: %s", exc)
+				mark_runtime_failed(persist_state.get("runtime_id"), f"检测模型初始化失败: {exc}")
+				time.sleep(5.0)
+				continue
 		runtime_id = persist_state.get("runtime_id")
 		if not _is_runtime_active(runtime_id):
 			time.sleep(0.5)
@@ -235,49 +245,68 @@ def detection_analysis_loop():
 			time.sleep(0.05)
 			continue
 
-		start = time.time()
-		# sahi切片检测
-		prediction = get_sliced_prediction(
-			frame,
-			detector,
-			slice_height = 640,
-			slice_width = 640,
-			postprocess_match_threshold = 0.8
-		)
-		end = time.time()
-		logger.info("[Detect] 模型检测耗时 %.2f", end - start)
+		try:
+			start = time.time()
+			# sahi切片检测
+			prediction = get_sliced_prediction(
+				frame,
+				detector,
+				slice_height = 640,
+				slice_width = 640,
+				postprocess_match_threshold = 0.8
+			)
+			end = time.time()
+			logger.info("[Detect] 模型检测耗时 %.2f", end - start)
+		except Exception as exc:
+			logger.exception("[Detect] 推理失败: %s", exc)
+			mark_runtime_failed(runtime_id, f"检测推理失败: {exc}")
+			# 下次启动时重新装载模型，避免复用可能已损坏的实例。
+			detector = None
+			time.sleep(1.0)
+			continue
 
-		# 所有5个类别均参与
-		detections = prediction.object_prediction_list
-		with runtime_lock:
-			if not _is_runtime_active(runtime_id):
-				continue
-			seat_id_counter, _matched_n, _new_n = update_detected_seats(detections, seat_id_counter)
+		try:
+			# 所有5个类别均参与
+			detections = prediction.object_prediction_list
+			with runtime_lock:
+				if not _is_runtime_active(runtime_id):
+					continue
+				seat_id_counter, _matched_n, _new_n = update_detected_seats(detections, seat_id_counter)
 
-			persist_seats()
-			# 根据检测类别更新座位状态并写入事件
-			apply_detect_status(frame)
+				persist_seats()
+				# 根据检测类别更新座位状态并写入事件
+				apply_detect_status(frame)
 
-			state["time"] = time.strftime("%H:%M:%S")
-			# 刷新前端统计卡片数据（按告警等级）
-			state["counts"] = {
-				"total": len(state["seats"]),
-				"focus": sum(1 for v in alert_level_map.values() if v == "警告"),
-				"normal": sum(1 for v in alert_level_map.values() if v == "提示"),
-			}
-			update_session_counts()
-			alert_seats = [dict(s) for s in state["seats"] if alert_level_map.get(s["seat_id"]) in ("警告", "提示")]
+				state["time"] = time.strftime("%H:%M:%S")
+				# 刷新前端统计卡片数据（按告警等级）
+				state["counts"] = {
+					"total": len(state["seats"]),
+					"focus": sum(1 for v in alert_level_map.values() if v == "警告"),
+					"normal": sum(1 for v in alert_level_map.values() if v == "提示"),
+				}
+				update_session_counts()
+				alert_seats = [dict(s) for s in state["seats"] if alert_level_map.get(s["seat_id"]) in ("警告", "提示")]
 
-		# 有异常才送 VLM 分析；运行标识会阻止停止/重启后的旧帧入队。
-		enqueue_task(frame, alert_seats, runtime_id)
+			# 有异常才送 VLM 分析；运行标识会阻止停止/重启后的旧帧入队。
+			enqueue_task(frame, alert_seats, runtime_id)
+		except Exception as exc:
+			logger.exception("[Detect] 结果处理失败: %s", exc)
+			mark_runtime_failed(runtime_id, f"检测结果处理失败: {exc}")
+			continue
 		time.sleep(2.0)
 
 
 def frame_loader_worker():
-	"""持续从当前视频源读取最新帧"""
+	"""持续从当前视频源读取最新帧，读取失败时不让线程静默退出。"""
 	logger.info("[Video] 启动视频流")
 	while True:
-		state["frame"] = video_stream.get_latest_frame()
+		try:
+			state["frame"] = video_stream.get_latest_frame()
+		except Exception as exc:
+			logger.exception("[Video] 读取视频帧失败: %s", exc)
+			mark_runtime_failed(persist_state.get("runtime_id"), f"视频帧读取失败: {exc}")
+			time.sleep(1.0)
+			continue
 		time.sleep(0.04)
 
 
@@ -295,6 +324,70 @@ def _safe_persist(action, description):
 	except Exception as exc:
 		logger.warning("[Persist] %s失败: %s", description, exc)
 		return None
+
+
+def _mark_session_failed(session_id, reason):
+	if not session_id:
+		return False
+
+	def action():
+		with db_session() as db:
+			session = db.query(MonitorSession).filter(MonitorSession.id == session_id).first()
+			if not session:
+				return False
+			now = datetime.now()
+			session.status = "FAILED"
+			session.analysis_status = "FAILED"
+			session.ended_at = session.ended_at or now
+			session.last_heartbeat_at = now
+			config = dict(session.rule_config_json or {})
+			config["runtime_error"] = reason[:500]
+			session.rule_config_json = config
+			return True
+
+	return _safe_persist(action, "标记失败课次") is True
+
+
+def mark_runtime_failed(runtime_id, reason):
+	"""将活动课次切换为 FAILED，确保工作线程异常不会伪装成仍在运行。"""
+	with runtime_lock:
+		if not _is_runtime_active(runtime_id):
+			return False
+		session_id = persist_state.get("session_id")
+		persist_state["runtime_id"] = None
+		state["is_running"] = False
+		state["phase"] = "error"
+		state["error"] = reason[:500]
+	if session_id:
+		_mark_session_failed(session_id, reason)
+	return True
+
+
+def recover_interrupted_sessions():
+	"""启动时回收无心跳的 RUNNING 课次，防止进程崩溃留下永久运行状态。"""
+	cutoff = datetime.now() - timedelta(seconds = INTERRUPTED_SESSION_TIMEOUT_SECONDS)
+	try:
+		with db_session() as db:
+			rows = (
+				db.query(MonitorSession)
+				.filter(
+					MonitorSession.status == "RUNNING",
+					(MonitorSession.last_heartbeat_at.is_(None) | (MonitorSession.last_heartbeat_at < cutoff)),
+				)
+				.all()
+			)
+			for session in rows:
+				session.status = "FAILED"
+				session.analysis_status = "FAILED"
+				session.ended_at = session.ended_at or datetime.now()
+				session.last_heartbeat_at = datetime.now()
+				config = dict(session.rule_config_json or {})
+				config["runtime_error"] = "服务启动时发现运行心跳超时，已停止该课次。"
+				session.rule_config_json = config
+			return len(rows)
+	except Exception as exc:
+		logger.warning("[Persist] 回收异常课次失败: %s", exc)
+		return 0
 
 
 def _resolve_class(db, class_name):
@@ -446,8 +539,12 @@ def start_monitoring(class_name = None, class_code = None, operator_user_id = No
 		persist_state["seat_db_ids"] = {}
 		persist_state["event_db_ids"] = {}
 		state["is_running"] = True
+		state["phase"] = "monitor"
+		state["error"] = ""
 		if not _safe_persist(action, "创建监控会话"):
 			state["is_running"] = False
+			state["phase"] = "error"
+			state["error"] = "无法创建监控课次，请检查教学配置和数据库连接"
 			persist_state["runtime_id"] = None
 			raise RuntimeError("无法创建监控课次，请检查教学配置和数据库连接")
 		return { "ok": True, "session_id": persist_state["session_id"] }
@@ -464,13 +561,15 @@ def stop_monitoring():
 		# 先废止运行标识，后台 VLM 即使稍后返回也不会写入后续课次。
 		persist_state["runtime_id"] = None
 		state["is_running"] = False
+		state["phase"] = "done"
+		state["error"] = ""
 		state["seats"] = []
 		state["events"] = []
 		state["counts"] = { "total": 0, "focus": 0, "normal": 0 }
 
 	def action():
 		if not session_id:
-			return None
+			return True
 		with db_session() as db:
 			session = db.query(MonitorSession).filter(MonitorSession.id == session_id).first()
 			if session:
@@ -482,21 +581,26 @@ def stop_monitoring():
 				session.warning_count = warning_count
 				session.notice_count = notice_count
 				session.event_count = event_count
+				return True
 
-	_safe_persist(action, "结束监控会话")
+	if _safe_persist(action, "结束监控会话") is not True:
+		return { "ok": False, "detail": "监控已停止，但课次状态写入失败，请检查数据库连接" }
 	if session_id:
 		# 前端停止后不再把结果作为实时告警处理，而是生成可追溯的课后汇总和报告草稿。
 		def finalize_action():
 			with db_session() as db:
 				finalize_lesson_analysis(db, session_id)
+				return True
 
-		_safe_persist(finalize_action, "生成课后分析汇总")
+		if _safe_persist(finalize_action, "生成课后分析汇总") is not True:
+			_mark_session_failed(session_id, "课后分析汇总失败，请在故障排除后重试。")
+			return { "ok": False, "detail": "监控已停止，但课后分析归档失败，请检查服务日志后重试" }
 	persist_state["session_id"] = None
 	persist_state["class_id"] = None
 	persist_state["seat_db_ids"] = {}
 	persist_state["event_db_ids"] = {}
 	refresh_runtime_class_config()
-	return { "ok": True }
+	return { "ok": True, "analysis_status": "COMPLETED" }
 
 
 def persist_seats():
@@ -1005,7 +1109,9 @@ def append_event(answer, target, frame, ts_ms):
 	file_name = f"ev_{ts_ms}_{target['seat_code']}.jpg"
 	event_uid = f"EV{ts_ms}_{target['seat_code']}"
 	x1, y1, x2, y2 = crop_bounds(frame, target["box"], 10)
-	cv2.imwrite(str(EVENT_CROP_DIR / file_name), frame[y1:y2, x1:x2])
+	if not cv2.imwrite(str(EVENT_CROP_DIR / file_name), frame[y1:y2, x1:x2]):
+		logger.error("[Persist] 异常截图写入失败: %s", file_name)
+		return None
 	event_payload = {
 		"id": time.time(),
 		"event_id": event_uid,

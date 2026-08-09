@@ -1,7 +1,7 @@
 """课后分析汇总、课程串联和周期统计服务。"""
 
 from collections import defaultdict
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from uuid import uuid4
 
 from sqlalchemy import func
@@ -30,6 +30,32 @@ def _duration_seconds(started_at, ended_at):
 	if not started_at or not ended_at or ended_at <= started_at:
 		return 0
 	return max(int((ended_at - started_at).total_seconds()), 0)
+
+
+def _next_month_start(value):
+	return date(value.year + 1, 1, 1) if value.month == 12 else date(value.year, value.month + 1, 1)
+
+
+def _resolve_aggregate_period(db, course, scope_type, start_date, end_date):
+	"""统一使用左闭右开的统计区间，防止周/月汇总被错误标记为整个学期。"""
+	term = db.query(EduAcademicTerm).filter(EduAcademicTerm.id == course.term_id).first()
+	course_start = course.start_date or (term.start_date if term else datetime.utcnow().date())
+	course_end = (course.end_date or (term.end_date if term else datetime.utcnow().date())) + timedelta(days = 1)
+	if scope_type == "TERM":
+		if start_date or end_date:
+			raise ValueError("学期汇总不接受自定义日期范围")
+		return course_start, course_end
+	if not start_date or not end_date:
+		raise ValueError(f"{scope_type} 汇总必须同时提供 start_date 和 end_date")
+	if end_date <= start_date:
+		raise ValueError("汇总结束日期必须晚于开始日期")
+	if start_date < course_start or end_date > course_end:
+		raise ValueError("汇总日期必须位于教学课程有效期内")
+	if scope_type == "WEEK" and (start_date.weekday() != 0 or end_date != start_date + timedelta(days = 7)):
+		raise ValueError("周汇总必须从周一开始，且结束日期为下周一")
+	if scope_type == "MONTH" and (start_date.day != 1 or end_date != _next_month_start(start_date)):
+		raise ValueError("月汇总必须从当月 1 日开始，结束日期为下月 1 日")
+	return start_date, end_date
 
 
 def _serialize_behavior_counts(events):
@@ -102,7 +128,8 @@ def finalize_lesson_analysis(db, session_id):
 		analysis_run_id = run.id,
 		planned_duration_seconds = planned_duration,
 		valid_analysis_seconds = valid_duration,
-		avg_detected_seat_count = session.total_seat_count or None,
+		# 当前实时链路只保存最后一帧人数，不能伪装成全课平均人数。
+		avg_detected_seat_count = None,
 		event_count = len(events),
 		confirmed_event_count = sum(1 for event in events if event.confirmed_by_vlm),
 		# 现有实时链路未保存全帧覆盖率，必须如实标注为受限数据。
@@ -122,12 +149,17 @@ def finalize_lesson_analysis(db, session_id):
 			)
 		)
 
+	max_report_version = db.query(func.max(TeachingAnalysisReport.report_version)).filter(
+		TeachingAnalysisReport.session_id == session.id,
+		TeachingAnalysisReport.report_scope == "LESSON",
+	).scalar() or 0
 	report = TeachingAnalysisReport(
 		report_no = _new_no("LR"),
 		report_title = f"{session.class_name} {session.lesson_title or '课堂'}课后分析报告",
 		report_scope = "LESSON",
 		session_id = session.id,
 		teaching_course_id = session.teaching_course_id,
+		report_version = int(max_report_version) + 1,
 		overview_text = _build_lesson_overview(session, summary),
 		finding_text = _build_lesson_finding(behavior_counts),
 		suggestion_text = _build_lesson_suggestion(behavior_counts),
@@ -198,14 +230,7 @@ def refresh_course_aggregate(db, teaching_course_id, scope_type = "TERM", start_
 		raise ValueError("教学课程不存在")
 	if scope_type not in { "WEEK", "MONTH", "TERM", "CUSTOM" }:
 		raise ValueError("汇总范围无效")
-	if not start_date or not end_date:
-		term = db.query(EduAcademicTerm).filter(EduAcademicTerm.id == course.term_id).first()
-		start_date = start_date or course.start_date or (term.start_date if term else datetime.utcnow().date())
-		inclusive_end_date = course.end_date or (term.end_date if term else datetime.utcnow().date())
-		# 周期结束日期统一使用开区间，学期和课程配置中的结束日期则按自然日包含处理。
-		end_date = (end_date or inclusive_end_date + timedelta(days = 1))
-		if end_date <= start_date:
-			end_date = start_date + timedelta(days = 1)
+	start_date, end_date = _resolve_aggregate_period(db, course, scope_type, start_date, end_date)
 
 	rows = (
 		db.query(MonitorSession, LessonAnalysisRun, LessonAnalysisSummary)

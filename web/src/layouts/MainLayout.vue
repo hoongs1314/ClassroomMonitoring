@@ -7,14 +7,15 @@ import AppSidebar from '@/components/common/AppSidebar.vue'
 const { requestJson } = useApi()
 
 const sidebarCollapsed = ref(false)
-const currentClass = ref('1班')
+const currentClass = ref('')
 const currentClassCode = ref('')
 
-async function handleSelectClass(cls, classInfo = {}) {
+async function handleSelectClass(cls, classInfo = {}, synchronizeRuntime = true) {
 	const previousClass = currentClass.value
 	const previousClassCode = currentClassCode.value
   currentClass.value = cls
   currentClassCode.value = classInfo.class_code || ''
+  if (!synchronizeRuntime) return
   try {
     await requestJson('/api/switch_class', {
       method: 'POST',

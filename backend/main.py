@@ -6,22 +6,27 @@ import time
 import cv2
 
 from contextlib import asynccontextmanager, suppress
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import unquote
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from core.bootstrap import bootstrap_admin_user
+from core.config import settings
 from core.database import SessionLocal, get_db, init_database
 from core.dependencies import get_current_context, is_admin, load_context_from_token, parse_bearer_token
-from domain.models import EduClass, EduTeacherClass, MonitorBehaviorEvent
+from domain.models import EduClass, EduTeacherClass, MonitorBehaviorEvent, MonitorSession
 from services.monitor_service import (
 	EVENT_CROP_DIR,
 	detection_analysis_loop,
 	frame_loader_worker,
+	persist_state,
 	refresh_runtime_class_config,
+	recover_interrupted_sessions,
 	vlm_worker,
 	state,
 	start_monitoring,
@@ -38,12 +43,14 @@ from routers.course_analysis_routes import router as course_analysis_router
 from routers.teacher_routes import _ensure_session_access
 
 logger = logging.getLogger("monitor.service")
-# Worker数量
-VLM_WORKER_COUNT = 30
+# Worker 数量由环境变量控制，避免在普通本机上无条件启动大量外部模型客户端。
+VLM_WORKER_COUNT = settings.vlm_worker_count
 # websocket通知间隔
 BROADCAST_INTERVAL_SECONDS = 1.0
 # 视频帧间隔
 FRAME_INTERVAL_SECONDS = 0.04
+# 已建立的媒体连接也必须定期重验登录状态与授权范围。
+MEDIA_AUTH_RECHECK_SECONDS = 1.0
 
 websocket_client_permissions = {}
 websocket_client_tokens = {}
@@ -56,35 +63,37 @@ def decode_header_text(value):
 	return unquote(value)
 
 
-def get_token_from_header_or_query(
+def get_token_from_header_or_cookie(
 	authorization = Header(default = None, alias = "Authorization"),
-	token = Query(default = None),
+	media_token = Cookie(default = None, alias = "monitor_media_token"),
 ):
-	"""视频流等浏览器原生请求无法设置 Header，允许使用 query token。"""
-	if token:
-		return token
-	return parse_bearer_token(authorization)
+	"""媒体元素通过 HttpOnly Cookie 鉴权，避免把访问令牌暴露在 URL 中。"""
+	if authorization:
+		return parse_bearer_token(authorization)
+	if media_token:
+		return media_token
+	raise HTTPException(status_code = 401, detail = "登录状态无效或已过期")
 
 
 def get_current_context_from_header_or_query(
 	db: Session = Depends(get_db),
-	token = Depends(get_token_from_header_or_query),
+	token = Depends(get_token_from_header_or_cookie),
 ):
 	return load_context_from_token(db, token)
 
 
-def get_runtime_access_context(token = Depends(get_token_from_header_or_query)):
+def get_runtime_access_context(token = Depends(get_token_from_header_or_cookie)):
 	"""流式媒体在建立连接前完成鉴权，避免长期占用数据库连接。"""
 	db = SessionLocal()
 	try:
 		context = load_context_from_token(db, token)
-		return { "context": context, "allowed_classes": allowed_runtime_class_names(db, context) }
+		return { "token": token, "allowed_classes": allowed_runtime_class_names(db, context) }
 	finally:
 		db.close()
 
 
 def load_websocket_context(websocket, db):
-	token = websocket.query_params.get("token")
+	token = websocket.cookies.get("monitor_media_token")
 	if not token:
 		authorization = websocket.headers.get("authorization")
 		if authorization:
@@ -107,6 +116,7 @@ def allowed_runtime_class_names(db, context, require_start = False):
 	if not teacher:
 		return set()
 	permission_column = EduTeacherClass.can_start_monitor if require_start else EduTeacherClass.can_view_monitor
+	today = datetime.now().date()
 	rows = (
 		db.query(EduClass.class_name)
 		.join(EduTeacherClass, EduTeacherClass.class_id == EduClass.id)
@@ -114,6 +124,8 @@ def allowed_runtime_class_names(db, context, require_start = False):
 			EduTeacherClass.teacher_id == teacher.id,
 			EduTeacherClass.enabled == 1,
 			permission_column == 1,
+			or_(EduTeacherClass.start_date.is_(None), EduTeacherClass.start_date <= today),
+			or_(EduTeacherClass.end_date.is_(None), EduTeacherClass.end_date >= today),
 			EduClass.enabled == 1,
 		)
 		.all()
@@ -124,8 +136,11 @@ def allowed_runtime_class_names(db, context, require_start = False):
 def resolve_runtime_class_name(db, class_name = None, class_code = None):
 	if class_code:
 		row = db.query(EduClass.class_name).filter(EduClass.class_code == class_code, EduClass.enabled == 1).first()
-		if row:
-			return row[0]
+		if not row:
+			raise HTTPException(status_code = 400, detail = "班级编码无效或已停用")
+		if class_name and class_name != row[0]:
+			raise HTTPException(status_code = 400, detail = "班级名称与编码不一致")
+		return row[0]
 	if class_name:
 		return class_name
 	return state["current_class"]
@@ -169,6 +184,8 @@ def build_status_payload():
 		"seats": state["seats"],
 		"events": state["events"],
 		"counts": state["counts"],
+		"phase": state.get("phase", "idle"),
+		"error": state.get("error", ""),
 	}
 
 
@@ -232,6 +249,9 @@ async def lifespan(app: FastAPI):
 	"""应用生命周期函数"""
 	init_database()
 	bootstrap_admin_user()
+	recovered = recover_interrupted_sessions()
+	if recovered:
+		logger.warning("[App] 已将 %d 个无心跳的运行中课次标记为失败", recovered)
 	refresh_runtime_class_config()
 	start_background_threads()
 	broadcast_task = asyncio.create_task(broadcast_status_loop())
@@ -246,7 +266,7 @@ app = FastAPI(lifespan = lifespan)
 # 请求中间件设置
 app.add_middleware(
 	CORSMiddleware,
-	allow_origins = ["*"],
+	allow_origins = list(settings.cors_origins),
 	allow_credentials = True,
 	allow_methods = ["*"],
 	allow_headers = ["*"],
@@ -290,9 +310,26 @@ async def websocket_endpoint(websocket: WebSocket):
 		logger.warning("[WS] 客户端异常断开: %s", exc)
 
 
-def lastest_frames(allowed_classes):
-	"""持续输出当前监控帧"""
+def lastest_frames(token):
+	"""持续输出当前监控帧，并在媒体连接存续期间重验权限。"""
+	allowed_classes = set()
+	next_auth_check = 0.0
 	while True:
+		if time.monotonic() >= next_auth_check:
+			try:
+				db = SessionLocal()
+				try:
+					context = load_context_from_token(db, token)
+					allowed_classes = allowed_runtime_class_names(db, context)
+				finally:
+					db.close()
+			except HTTPException:
+				logger.info("[App] 视频流鉴权失效，主动结束连接")
+				return
+			except Exception as exc:
+				logger.warning("[App] 视频流权限重验失败，主动结束连接: %s", exc)
+				return
+			next_auth_check = time.monotonic() + MEDIA_AUTH_RECHECK_SECONDS
 		can_view_class = allowed_classes is None or state["current_class"] in allowed_classes
 		if can_view_class and state["is_running"] and state["frame"] is not None:
 			success, encoded_img = cv2.imencode(".jpg", state["frame"])
@@ -310,7 +347,11 @@ def video_feed_endpoint(
 	if allowed_classes is not None and state["current_class"] not in allowed_classes:
 		raise HTTPException(status_code = 403, detail = "无权查看该班级监控")
 	logger.info("[App] 视频流客户端连接")
-	return StreamingResponse(lastest_frames(allowed_classes), media_type = "multipart/x-mixed-replace; boundary=frame")
+	return StreamingResponse(
+		lastest_frames(runtime_access["token"]),
+		media_type = "multipart/x-mixed-replace; boundary=frame",
+		headers = { "Cache-Control": "no-store, private", "Pragma": "no-cache" },
+	)
 
 
 @app.get("/api/latest_frame")
@@ -349,7 +390,10 @@ def event_crop_endpoint(
 	path = EVENT_CROP_DIR / file_name
 	if not path.is_file():
 		raise HTTPException(status_code = 404, detail = "截图文件不存在")
-	return FileResponse(path)
+	return FileResponse(
+		path,
+		headers = { "Cache-Control": "no-store, private", "Pragma": "no-cache" },
+	)
 
 
 @app.post("/api/start")
@@ -361,13 +405,12 @@ def api_start_monitoring(
 ):
 	"""启动监控"""
 	class_name = decode_header_text(x_class_name)
-	ensure_runtime_class_permission(db, context, class_name, x_class_code, require_start = True)
+	target_class = ensure_runtime_class_permission(db, context, class_name, x_class_code, require_start = True)
 	if state["is_running"]:
 		raise HTTPException(status_code = 409, detail = "已有演示分析正在运行，请先结束当前课次")
 	try:
 		result = start_monitoring(
-			class_name = class_name,
-			class_code = x_class_code,
+		class_name = target_class,
 			operator_user_id = context["user"].id,
 			operator_name = context["user"].real_name or context["user"].username,
 		)
@@ -383,8 +426,17 @@ def api_stop_monitoring(
 	db: Session = Depends(get_db),
 ):
 	"""停止监控、清空状态"""
-	ensure_runtime_class_permission(db, context, require_start = True)
+	if not is_admin(context):
+		# 权限撤销不能让原操作人失去停止自己任务的能力，避免演示任务无人可停。
+		if persist_state.get("session_id"):
+			session = db.query(MonitorSession).filter(MonitorSession.id == persist_state["session_id"]).first()
+			if not session or session.operator_user_id != context["user"].id:
+				ensure_runtime_class_permission(db, context, require_start = True)
+		else:
+			ensure_runtime_class_permission(db, context, require_start = True)
 	result = stop_monitoring()
+	if not result.get("ok"):
+		raise HTTPException(status_code = 500, detail = result.get("detail", "课后分析归档失败"))
 	logger.info("[App] 停止监控")
 	return result
 
@@ -398,7 +450,9 @@ def api_classes(
 	allowed_classes = allowed_runtime_class_names(db, context)
 	class_list = state["class_list"] if allowed_classes is None else [name for name in state["class_list"] if name in allowed_classes]
 	current = state["current_class"] if state["current_class"] in class_list else (class_list[0] if class_list else "")
-	return { "classes": class_list, "current": current }
+	rows = db.query(EduClass.class_name, EduClass.class_code).filter(EduClass.class_name.in_(class_list), EduClass.enabled == 1).all() if class_list else []
+	codes = { name: code for name, code in rows }
+	return { "classes": [{ "class_name": name, "class_code": codes.get(name, "") } for name in class_list], "current": current }
 
 
 @app.post("/api/switch_class")

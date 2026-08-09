@@ -40,16 +40,21 @@ function normalizeClass(item) {
 }
 
 onMounted(async () => {
-  try {
-    const data = await requestJson('/api/teacher/classes')
-    classList.value = (data.classes || []).map(normalizeClass)
-    activeClass.value = classList.value[0]?.class_name || ''
-  } catch (error) {
+	try {
+		const data = await requestJson(isAdmin.value ? '/api/classes' : '/api/teacher/classes')
+		classList.value = (data.classes || []).map(normalizeClass)
+		const initial = classList.value.find((item) => item.class_name === data.current) || classList.value[0]
+		activeClass.value = initial?.class_name || ''
+		// 父布局必须与服务端返回的实际班级同步，但初始化不触发一次无意义的切换请求。
+		if (initial) emit('select-class', initial.class_name, initial, false)
+	} catch (error) {
 	if (error.status !== 404) return
-    try {
-      const data = await requestJson('/api/classes')
-      classList.value = (data.classes || []).map(normalizeClass)
-      activeClass.value = data.current || classList.value[0]?.class_name || ''
+		try {
+			const data = await requestJson('/api/classes')
+			classList.value = (data.classes || []).map(normalizeClass)
+			const initial = classList.value.find((item) => item.class_name === data.current) || classList.value[0]
+			activeClass.value = initial?.class_name || ''
+			if (initial) emit('select-class', initial.class_name, initial, false)
     } catch {
       classList.value = []
       activeClass.value = ''

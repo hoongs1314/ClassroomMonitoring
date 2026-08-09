@@ -28,6 +28,9 @@ class AppConfig:
 	aliyun_api_key: str
 	admin_username: str
 	admin_password: str
+	cors_origins: tuple[str, ...]
+	media_cookie_secure: bool
+	vlm_worker_count: int
 
 
 def _build_database_url():
@@ -45,6 +48,14 @@ def _build_database_url():
 
 
 def get_config():
+	cors_origins = tuple(
+		origin.strip()
+		for origin in os.environ.get(
+			"CORS_ORIGINS",
+			"http://localhost:8998,http://127.0.0.1:8998,http://localhost:8080,http://127.0.0.1:8080",
+		).split(",")
+		if origin.strip()
+	)
 	return AppConfig(
 		database_url = _build_database_url(),
 		jwt_secret_key = os.environ.get("JWT_SECRET_KEY", "please-change-this-secret"),
@@ -55,6 +66,10 @@ def get_config():
 		aliyun_api_key = os.environ.get("ALIYUN_API_KEY", ""),
 		admin_username = os.environ.get("ADMIN_USERNAME", "admin"),
 		admin_password = os.environ.get("ADMIN_PASSWORD", ""),
+		# 开发环境允许 HTTP Cookie；HTTPS 部署应显式设置为 true。
+		cors_origins = cors_origins,
+		media_cookie_secure = _get_bool("MEDIA_COOKIE_SECURE", False),
+		vlm_worker_count = max(1, int(os.environ.get("VLM_WORKER_COUNT", "2"))),
 	)
 
 

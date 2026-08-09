@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { getAccessToken, useApi } from '@/composables/useApi'
+import { useApi } from '@/composables/useApi'
 
 const props = defineProps({
   open: Boolean,
@@ -31,9 +31,7 @@ const frameUrl = computed(() => {
     v: cacheKey,
     t: String(Date.now()),
   })
-  const accessToken = getAccessToken()
-  if (accessToken) params.set('token', accessToken)
-  return `${mediaUrl('/api/latest_frame')}?${params.toString()}`
+	return `${mediaUrl('/api/latest_frame')}?${params.toString()}`
 })
 
 function boxStyle(box) {
