@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue'
+import { message } from 'ant-design-vue'
 import { useApi } from '@/composables/useApi'
 import AppSidebar from '@/components/common/AppSidebar.vue'
 
@@ -10,6 +11,8 @@ const currentClass = ref('1班')
 const currentClassCode = ref('')
 
 async function handleSelectClass(cls, classInfo = {}) {
+	const previousClass = currentClass.value
+	const previousClassCode = currentClassCode.value
   currentClass.value = cls
   currentClassCode.value = classInfo.class_code || ''
   try {
@@ -17,8 +20,10 @@ async function handleSelectClass(cls, classInfo = {}) {
       method: 'POST',
       body: JSON.stringify({ class: cls }),
     })
-  } catch {
-    // 切换失败不影响前端显示
+  } catch (error) {
+	currentClass.value = previousClass
+	currentClassCode.value = previousClassCode
+	message.error(error.message || '班级切换失败')
   }
 }
 </script>

@@ -11,7 +11,7 @@ import {
   SafetyCertificateOutlined,
 } from '@ant-design/icons-vue'
 import { useWebSocket } from '@/composables/useWebSocket'
-import { getAccessToken, getStoredUser, useApi } from '@/composables/useApi'
+import { getAccessToken, useApi } from '@/composables/useApi'
 import VideoPlayer from '@/components/monitor/VideoPlayer.vue'
 import StatsCard from '@/components/monitor/StatsCard.vue'
 import EventList from '@/components/monitor/EventList.vue'
@@ -104,21 +104,12 @@ function encodeHeaderText(value) {
 async function startMonitor() {
   starting.value = true
   try {
-    const user = getStoredUser()
     const className = props.currentClass || status.value?.current_class || ''
     const headers = {
       ...(props.currentClassCode ? { 'X-Class-Code': props.currentClassCode } : {}),
       ...(!props.currentClassCode && className ? { 'X-Class-Name': encodeHeaderText(className) } : {}),
-      ...(user?.teacher?.id ? { 'X-Teacher-Id': String(user.teacher.id) } : {}),
-      'X-Operator-Name': encodeHeaderText(user?.real_name || user?.username || ''),
-      ...(user?.id ? { 'X-Operator-User-Id': String(user.id) } : {}),
     }
-    let result
-    try {
-      result = await requestJson('/api/start', { method: 'POST', headers })
-    } catch {
-      result = await requestJson('/api/monitor/start', { method: 'POST', headers })
-    }
+    const result = await requestJson('/api/start', { method: 'POST', headers })
     monitorStarted.value = true
     message.success(result?.message || '演示分析已启动')
   } catch (error) {
@@ -130,16 +121,12 @@ async function startMonitor() {
 
 async function stopMonitor() {
   try {
-    try {
-      await requestJson('/api/stop', { method: 'POST' })
-    } catch {
-      await requestJson('/api/monitor/stop', { method: 'POST' })
-    }
-  } catch {
-    // ignore
+    await requestJson('/api/stop', { method: 'POST' })
+    monitorStarted.value = false
+    message.success('演示分析已停止，课后结果已归档')
+  } catch (error) {
+    message.error(error.message || '结束演示分析失败')
   }
-  monitorStarted.value = false
-  message.success('演示分析已停止，课后结果已归档')
 }
 
 function openSeatMap() {

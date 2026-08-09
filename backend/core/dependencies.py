@@ -51,15 +51,21 @@ def load_context_from_token(db, token):
 	user = db.query(SysUser).filter(SysUser.id == user_id).first()
 	if not user or user.status != "ENABLED":
 		raise HTTPException(status_code = 401, detail = "用户不存在或已被禁用")
+	issued_at = payload.get("iat")
+	if user.password_changed_at and issued_at:
+		issued_at_time = datetime.utcfromtimestamp(issued_at)
+		if issued_at_time < user.password_changed_at:
+			raise HTTPException(status_code = 401, detail = "密码已修改，请重新登录")
 
 	jti = payload.get("jti")
-	if jti:
-		token_row = db.query(SysAuthToken).filter(SysAuthToken.token_jti == jti).first()
-		if token_row and token_row.revoked_at is not None:
-			raise HTTPException(status_code = 401, detail = "登录状态已失效")
+	token_row = db.query(SysAuthToken).filter(SysAuthToken.token_jti == jti).first() if jti else None
+	if not token_row or token_row.user_id != user.id or token_row.revoked_at is not None:
+		raise HTTPException(status_code = 401, detail = "登录状态已失效")
 
 	roles = _load_roles(db, user.id)
 	teacher = db.query(EduTeacher).filter(EduTeacher.user_id == user.id).first()
+	if teacher and teacher.status != "ENABLED":
+		raise HTTPException(status_code = 401, detail = "教师档案已被停用")
 	return { "user": user, "roles": roles, "teacher": teacher, "payload": payload, "token": token }
 
 

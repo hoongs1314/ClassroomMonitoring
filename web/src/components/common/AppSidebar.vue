@@ -44,14 +44,15 @@ onMounted(async () => {
     const data = await requestJson('/api/teacher/classes')
     classList.value = (data.classes || []).map(normalizeClass)
     activeClass.value = classList.value[0]?.class_name || ''
-  } catch {
+  } catch (error) {
+	if (error.status !== 404) return
     try {
       const data = await requestJson('/api/classes')
       classList.value = (data.classes || []).map(normalizeClass)
       activeClass.value = data.current || classList.value[0]?.class_name || ''
     } catch {
-      classList.value = ['1班', '2班', '3班', '4班'].map(normalizeClass)
-      activeClass.value = '1班'
+      classList.value = []
+      activeClass.value = ''
     }
   }
 })

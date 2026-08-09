@@ -31,7 +31,10 @@ watch([() => props.open, () => props.eventData, () => props.eventId], async ([is
   if (!id) return
   loading.value = true
   try {
-    fetchedData.value = await requestJson(`/api/events/${id}`)
+    const data = await requestJson('/api/teacher/event/detail', {
+      headers: { 'X-Event-Id': String(id) },
+    })
+    fetchedData.value = data.event || null
   } catch {
     fetchedData.value = null
   } finally {

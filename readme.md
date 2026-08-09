@@ -69,7 +69,7 @@ mysql -u root -p classroom_monitoring < db/001_init_mysql.sql
 mysql -u root -p classroom_monitoring < db/002_teaching_analysis.sql
 ```
 
-已有数据库升级时，只需执行第二条增量脚本。脚本只新增表、索引和字段，不删除既有课堂记录；执行前仍应完成数据库备份。Docker 首次启动当前只自动执行 `001_init_mysql.sql`，升级后需在容器内或通过本机 MySQL 客户端手动执行 `002_teaching_analysis.sql`。
+已有数据库升级时，只需执行第二条增量脚本。脚本只新增表、索引和字段，不删除既有课堂记录；执行前仍应完成数据库备份。Docker 在新建数据卷时会按顺序自动执行 `001_init_mysql.sql` 与 `002_teaching_analysis.sql`；已有数据卷仍需在容器内或通过本机 MySQL 客户端手动执行增量脚本。
 
 如需导入图片对应的“高三示范班”周课表，可额外执行：
 
@@ -148,4 +148,4 @@ $env:ALIYUN_API_KEY="你的阿里云Key"
 - 后端：http://localhost:8997
 - MySQL：localhost:3306
 
-首次启动会自动执行 `db/001_init_mysql.sql` 初始化表结构。设置 `ADMIN_PASSWORD` 后，后端启动会创建或启用管理员账号。
+首次启动会自动执行 `db/001_init_mysql.sql` 与 `db/002_teaching_analysis.sql` 初始化表结构。设置 `ADMIN_PASSWORD` 后，后端仅在管理员账号不存在时创建该账号，既有账号的密码和启用状态不会在重启时被覆盖。

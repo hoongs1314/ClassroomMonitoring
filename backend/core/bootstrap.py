@@ -30,11 +30,8 @@ def bootstrap_admin_user():
 			)
 			db.add(user)
 			db.flush()
-		else:
-			user.password_hash = hash_password(settings.admin_password)
-			user.status = "ENABLED"
 
 		exists = db.query(SysUserRole).filter(SysUserRole.user_id == user.id, SysUserRole.role_id == role.id).first()
 		if not exists:
 			db.add(SysUserRole(user_id = user.id, role_id = role.id))
-		logger.info("[Bootstrap] 管理员账号已初始化: %s", settings.admin_username)
+		logger.info("[Bootstrap] 管理员账号已就绪: %s", settings.admin_username)

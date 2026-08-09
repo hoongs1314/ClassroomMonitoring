@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import hashlib
 from uuid import uuid4
 
 from jose import JWTError, jwt
@@ -51,6 +52,11 @@ def create_refresh_token(subject, expires_delta = None):
 		"type": "refresh",
 	}
 	return jwt.encode(payload, settings.jwt_secret_key, algorithm = settings.jwt_algorithm)
+
+
+def hash_refresh_token(token):
+	"""只保存刷新令牌摘要，数据库泄露时不能直接复用原令牌。"""
+	return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def decode_token(token):

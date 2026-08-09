@@ -1,16 +1,17 @@
-import hashlib
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from core.auth_utils import create_access_token, create_refresh_token, decode_token, verify_password
+from core.auth_utils import create_access_token, create_refresh_token, decode_token, hash_refresh_token, verify_password
 from core.database import get_db
 from core.dependencies import get_current_context
 from domain.models import EduTeacher, EduTeacherClass, SysAuthToken, SysLoginLog, SysRole, SysUser, SysUserRole
 
 
 router = APIRouter(prefix = "/api/auth", tags = ["auth"])
+MAX_FAILED_LOGIN_COUNT = 5
+LOGIN_LOCK_MINUTES = 15
 
 
 def _client_ip(request):
@@ -86,14 +87,27 @@ async def login(request: Request, db: Session = Depends(get_db)):
 		_write_login_log(db, user, username, "LOCKED", "用户已禁用或锁定", request)
 		db.commit()
 		raise HTTPException(status_code = 403, detail = "用户已禁用或锁定")
+	now = datetime.utcnow()
+	if user.locked_until and user.locked_until > now:
+		_write_login_log(db, user, username, "LOCKED", "登录失败次数过多", request)
+		db.commit()
+		raise HTTPException(status_code = 423, detail = "账号暂时锁定，请稍后再试")
+	if user.locked_until:
+		user.locked_until = None
+		user.failed_login_count = 0
 	if not verify_password(password, user.password_hash):
 		user.failed_login_count = (user.failed_login_count or 0) + 1
-		_write_login_log(db, user, username, "FAILED", "密码错误", request)
+		if user.failed_login_count >= MAX_FAILED_LOGIN_COUNT:
+			user.locked_until = now + timedelta(minutes = LOGIN_LOCK_MINUTES)
+			_write_login_log(db, user, username, "LOCKED", "登录失败次数过多", request)
+		else:
+			_write_login_log(db, user, username, "FAILED", "密码错误", request)
 		db.commit()
 		raise HTTPException(status_code = 401, detail = "用户名或密码错误")
 
 	user.failed_login_count = 0
-	user.last_login_at = datetime.utcnow()
+	user.locked_until = None
+	user.last_login_at = now
 	user.last_login_ip = _client_ip(request)
 	roles = [
 		row[0]
@@ -107,7 +121,7 @@ async def login(request: Request, db: Session = Depends(get_db)):
 	access_token = create_access_token(user.id, { "roles": roles })
 	refresh_token = create_refresh_token(user.id)
 	access_payload = decode_token(access_token) or {}
-	refresh_hash = hashlib.sha256(refresh_token.encode("utf-8")).hexdigest()
+	refresh_hash = hash_refresh_token(refresh_token)
 	db.add(
 		SysAuthToken(
 			user_id = user.id,
@@ -136,6 +150,7 @@ def logout(context = Depends(get_current_context), db: Session = Depends(get_db)
 		row = db.query(SysAuthToken).filter(SysAuthToken.token_jti == jti).first()
 		if row and not row.revoked_at:
 			row.revoked_at = datetime.utcnow()
+			row.refresh_token_hash = None
 			db.commit()
 	return { "ok": True }
 
@@ -150,8 +165,9 @@ def refresh_token(
 	payload = decode_token(x_refresh_token)
 	if not payload or payload.get("type") != "refresh":
 		raise HTTPException(status_code = 401, detail = "refresh token 无效")
-	refresh_hash = hashlib.sha256(x_refresh_token.encode("utf-8")).hexdigest()
-	row = db.query(SysAuthToken).filter(SysAuthToken.refresh_token_hash == refresh_hash, SysAuthToken.revoked_at.is_(None)).first()
+	refresh_hash = hash_refresh_token(x_refresh_token)
+	rows = db.query(SysAuthToken).filter(SysAuthToken.refresh_token_hash == refresh_hash, SysAuthToken.revoked_at.is_(None)).all()
+	row = rows[0] if rows else None
 	if not row:
 		raise HTTPException(status_code = 401, detail = "refresh token 已失效")
 	user = db.query(SysUser).filter(SysUser.id == row.user_id, SysUser.status == "ENABLED").first()
@@ -166,20 +182,24 @@ def refresh_token(
 			.all()
 		)
 	]
+	# 刷新令牌采用一次性轮换；兼容清理历史版本中可能留下的重复摘要。
+	for active_row in rows:
+		active_row.refresh_token_hash = None
 	access_token = create_access_token(user.id, { "roles": roles })
+	refresh_token = create_refresh_token(user.id)
 	access_payload = decode_token(access_token) or {}
 	db.add(
 		SysAuthToken(
 			user_id = user.id,
 			token_jti = access_payload.get("jti", ""),
-			refresh_token_hash = refresh_hash,
+			refresh_token_hash = hash_refresh_token(refresh_token),
 			client_ip = row.client_ip,
 			user_agent = row.user_agent,
 			expires_at = datetime.utcfromtimestamp(access_payload["exp"]),
 		)
 	)
 	db.commit()
-	return { "ok": True, "token_type": "Bearer", "access_token": access_token }
+	return { "ok": True, "token_type": "Bearer", "access_token": access_token, "refresh_token": refresh_token }
 
 
 @router.get("/me")

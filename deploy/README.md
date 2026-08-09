@@ -49,6 +49,6 @@ docker compose --env-file deploy/.env.production -f docker-compose.production.ym
 ## 运行边界
 
 - `.dockerignore` 不会把模型和视频打进镜像；它们通过上述绑定挂载提供给后端。
-- 初始化 SQL 只会在 MySQL 数据卷首次创建时执行。已有数据卷不会自动重放初始化脚本。
+- `001_init_mysql.sql` 与 `002_teaching_analysis.sql` 只会在 MySQL 数据卷首次创建时按顺序执行。已有数据卷不会自动重放初始化或增量脚本。
 - 后端会把异常截图写入 `OUTPUTS_DIR`；该目录需要具备写入权限并按学校隐私要求设置保留周期。
 - 前端在生产环境默认使用同源 Nginx 反向代理，无需将浏览器 API 地址固定为 `localhost:8997`。

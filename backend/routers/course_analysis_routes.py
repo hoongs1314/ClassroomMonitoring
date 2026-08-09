@@ -37,7 +37,17 @@ def _text(body, key):
 
 def _bool(body, key, default = False):
 	value = (body or {}).get(key)
-	return default if value is None else bool(value)
+	if value is None:
+		return default
+	if isinstance(value, bool):
+		return value
+	if isinstance(value, int) and value in { 0, 1 }:
+		return bool(value)
+	if isinstance(value, str) and value.strip().lower() in { "true", "1" }:
+		return True
+	if isinstance(value, str) and value.strip().lower() in { "false", "0" }:
+		return False
+	raise HTTPException(status_code = 400, detail = f"{key} 必须是布尔值")
 
 
 def _current_teacher(context):
@@ -402,7 +412,11 @@ async def update_improvement_action(action_id: int, request: Request, context = 
 	if status in { "VERIFIED", "CLOSED" }:
 		verify_id = (body or {}).get("verified_by_entry_id")
 		if verify_id not in (None, ""):
-			verify_entry = db.query(CourseAnalysisEntry).filter(CourseAnalysisEntry.id == int(verify_id), CourseAnalysisEntry.teaching_course_id == row.teaching_course_id).first()
+			try:
+				verify_id = int(verify_id)
+			except (TypeError, ValueError) as exc:
+				raise HTTPException(status_code = 400, detail = "验证课次必须是整数") from exc
+			verify_entry = db.query(CourseAnalysisEntry).filter(CourseAnalysisEntry.id == verify_id, CourseAnalysisEntry.teaching_course_id == row.teaching_course_id).first()
 			if not verify_entry:
 				raise HTTPException(status_code = 400, detail = "验证课次不属于当前课程")
 			row.verified_by_entry_id = verify_entry.id
@@ -471,6 +485,24 @@ async def create_course_report(course_id: int, request: Request, context = Depen
 	aggregate = db.query(CourseAnalysisAggregate).filter(CourseAnalysisAggregate.id == aggregate_id, CourseAnalysisAggregate.teaching_course_id == course_id).first() if aggregate_id else None
 	if not aggregate:
 		raise HTTPException(status_code = 400, detail = "请选择当前课程的有效汇总")
+	existing = (
+		db.query(TeachingAnalysisReport)
+		.filter(
+			TeachingAnalysisReport.teaching_course_id == course_id,
+			TeachingAnalysisReport.aggregate_id == aggregate.id,
+		)
+		.order_by(TeachingAnalysisReport.report_version.desc())
+		.first()
+	)
+	if existing and existing.report_status != "PUBLISHED":
+		raise HTTPException(status_code = 409, detail = "该汇总已有未发布报告，请继续编辑现有草稿")
+	latest = (
+		db.query(TeachingAnalysisReport.report_version)
+		.filter(TeachingAnalysisReport.teaching_course_id == course_id)
+		.order_by(TeachingAnalysisReport.report_version.desc())
+		.first()
+	)
+	report_version = (latest[0] if latest else 0) + 1
 	stats = db.query(CourseBehaviorStat).filter(CourseBehaviorStat.aggregate_id == aggregate.id).all()
 	finding = "、".join(f"{item.behavior_code} {item.event_count} 次" for item in stats) or "当前汇总没有可用行为统计。"
 	report = TeachingAnalysisReport(
@@ -479,6 +511,7 @@ async def create_course_report(course_id: int, request: Request, context = Depen
 		report_scope = "COURSE",
 		aggregate_id = aggregate.id,
 		teaching_course_id = course_id,
+		report_version = report_version,
 		overview_text = f"本报告覆盖 {aggregate.completed_session_count} 节已完成分析的课次，有效分析时长 {aggregate.valid_analysis_seconds} 秒。",
 		finding_text = f"课程阶段统计：{finding}",
 		suggestion_text = "请结合课程内容和已记录的教学改进措施，由教师形成阶段性结论。",

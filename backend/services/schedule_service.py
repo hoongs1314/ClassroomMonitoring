@@ -127,7 +127,7 @@ def synchronize_scheduled_sessions(now = None):
 			created += 1
 
 		# 已结束的计划课次转为待分析。此处不伪造分析结论，Worker 完成推理后再生成汇总和报告。
-	ended_sessions = (
+		ended_sessions = (
 			db.query(MonitorSession)
 			.filter(
 				MonitorSession.status == "SCHEDULED",
@@ -136,22 +136,22 @@ def synchronize_scheduled_sessions(now = None):
 			)
 			.all()
 		)
-	for session in ended_sessions:
-		session.status = "STOPPED"
-		session.ended_at = session.planned_ended_at
-		session.last_heartbeat_at = now
-		if not db.query(LessonAnalysisRun).filter(LessonAnalysisRun.session_id == session.id).first():
-			db.add(
-				LessonAnalysisRun(
-					session_id = session.id,
-					run_no = 1,
-					run_status = "PENDING",
-					is_current = 1,
-					model_name = "yolo-sahi-vlm",
-					rule_version = "post-class-v1",
+		for session in ended_sessions:
+			session.status = "STOPPED"
+			session.ended_at = session.planned_ended_at
+			session.last_heartbeat_at = now
+			if not db.query(LessonAnalysisRun).filter(LessonAnalysisRun.session_id == session.id).first():
+				db.add(
+					LessonAnalysisRun(
+						session_id = session.id,
+						run_no = 1,
+						run_status = "PENDING",
+						is_current = 1,
+						model_name = "yolo-sahi-vlm",
+						rule_version = "post-class-v1",
+					)
 				)
-			)
-		ended += 1
+			ended += 1
 	return { "created": created, "ended": ended }
 
 

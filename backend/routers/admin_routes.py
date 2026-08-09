@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from core.auth_utils import hash_password
 from core.database import get_db
 from core.dependencies import require_admin
-from domain.models import EduClass, EduTeacher, EduTeacherClass, SysRole, SysUser, SysUserRole
+from domain.models import EduClass, EduTeacher, EduTeacherClass, SysAuthToken, SysRole, SysUser, SysUserRole
 from services.monitor_service import list_video_sources, refresh_runtime_class_config, state, validate_video_source
 
 
@@ -26,7 +26,17 @@ def _text(body, key):
 
 def _bool(body, key, default = False):
 	value = (body or {}).get(key)
-	return default if value is None else bool(value)
+	if value is None:
+		return default
+	if isinstance(value, bool):
+		return value
+	if isinstance(value, int) and value in { 0, 1 }:
+		return bool(value)
+	if isinstance(value, str) and value.strip().lower() in { "true", "1" }:
+		return True
+	if isinstance(value, str) and value.strip().lower() in { "false", "0" }:
+		return False
+	raise HTTPException(status_code = 400, detail = f"{key} 必须是布尔值")
 
 
 def _int(body, key):
@@ -262,6 +272,7 @@ async def update_user(user_id: int, request: Request, context = Depends(require_
 	if user.id == context["user"].id and status != "ENABLED":
 		raise HTTPException(status_code = 400, detail = "不能禁用当前登录账号")
 
+	credentials_changed = user.status != status
 	user.real_name = _require_text(body, "real_name", "姓名")
 	user.phone = _text(body, "phone") or None
 	user.email = _text(body, "email") or None
@@ -275,6 +286,7 @@ async def update_user(user_id: int, request: Request, context = Depends(require_
 		except ValueError as exc:
 			raise HTTPException(status_code = 400, detail = str(exc))
 		user.password_changed_at = datetime.utcnow()
+		credentials_changed = True
 
 	teacher = db.query(EduTeacher).filter(EduTeacher.user_id == user.id).first()
 	if teacher:
@@ -290,6 +302,15 @@ async def update_user(user_id: int, request: Request, context = Depends(require_
 		teacher.title = _text(body, "title") or None
 		teacher.status = status
 
+	if credentials_changed:
+		# 密码重置或禁用账号后撤销全部既有登录，避免旧访问令牌继续可用。
+		db.query(SysAuthToken).filter(
+			SysAuthToken.user_id == user.id,
+			SysAuthToken.revoked_at.is_(None),
+		).update(
+			{ SysAuthToken.revoked_at: datetime.utcnow(), SysAuthToken.refresh_token_hash: None },
+			synchronize_session = False,
+		)
 	db.commit()
 	roles = _role_codes_by_user(db).get(user.id, [])
 	return { "ok": True, "user": _serialize_user(user, teacher, roles) }

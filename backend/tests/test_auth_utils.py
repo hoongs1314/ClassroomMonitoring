@@ -12,6 +12,7 @@ from core.auth_utils import (
 	MAX_BCRYPT_PASSWORD_BYTES,
 	create_access_token,
 	decode_token,
+	hash_refresh_token,
 	hash_password,
 	verify_password,
 )
@@ -42,3 +43,8 @@ class AuthUtilsTests(unittest.TestCase):
 		self.assertEqual(payload["type"], "access")
 		self.assertEqual(payload["roles"], ["ADMIN"])
 		self.assertIn("jti", payload)
+
+	def test_refresh_token_hash_is_deterministic_and_not_plaintext(self):
+		token = "refresh-token-for-test"
+		self.assertEqual(hash_refresh_token(token), hash_refresh_token(token))
+		self.assertNotEqual(hash_refresh_token(token), token)

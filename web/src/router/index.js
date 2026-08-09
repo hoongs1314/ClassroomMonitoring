@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { getAccessToken, getStoredUser } from '@/composables/useApi'
+import { getAccessToken, getStoredUser, setUnauthorizedHandler } from '@/composables/useApi'
 import MainLayout from '@/layouts/MainLayout.vue'
 import LoginView from '@/views/LoginView.vue'
 import MonitorView from '@/views/MonitorView.vue'
@@ -38,6 +38,12 @@ router.beforeEach((to) => {
   if (!getAccessToken()) return { name: 'login', query: { redirect: to.fullPath } }
   if (to.meta.admin && !getStoredUser()?.roles?.includes('ADMIN')) return { name: 'classes' }
   return true
+})
+
+setUnauthorizedHandler(() => {
+  const current = router.currentRoute.value
+  if (current.name === 'login') return
+  router.replace({ name: 'login', query: { redirect: current.fullPath } })
 })
 
 export default router

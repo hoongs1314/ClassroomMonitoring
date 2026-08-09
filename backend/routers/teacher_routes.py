@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy import func
@@ -68,6 +69,7 @@ def _ensure_review_teacher(db, context, session, teacher_id = None):
 			teacher = db.query(EduTeacher).filter(EduTeacher.id == teacher_id).first()
 			if teacher:
 				return teacher
+			raise HTTPException(status_code = 400, detail = "指定的教师不存在")
 		teacher = context.get("teacher")
 		if teacher:
 			return teacher
@@ -89,6 +91,19 @@ def _ensure_review_teacher(db, context, session, teacher_id = None):
 	if not scope:
 		raise HTTPException(status_code = 403, detail = "无权复盘该班级监控记录")
 	return teacher
+
+
+def _review_score(body):
+	value = (body or {}).get("teaching_effect_score")
+	if value in (None, ""):
+		return None
+	try:
+		score = Decimal(str(value))
+	except (InvalidOperation, TypeError, ValueError) as exc:
+		raise HTTPException(status_code = 400, detail = "教学效果评分必须是 0 至 100 的数字") from exc
+	if not score.is_finite() or score < 0 or score > 100:
+		raise HTTPException(status_code = 400, detail = "教学效果评分必须在 0 至 100 之间")
+	return score
 
 
 @router.get("/classes")
@@ -351,7 +366,7 @@ async def save_review(
 	session = _ensure_session_access(db, context, session_id)
 	teacher = _ensure_review_teacher(db, context, session, teacher_id)
 	body = await request.json()
-	score = (body or {}).get("teaching_effect_score")
+	score = _review_score(body)
 	row = (
 		db.query(MonitorTeachingReview)
 		.filter(MonitorTeachingReview.session_id == session.id, MonitorTeachingReview.teacher_id == teacher.id)

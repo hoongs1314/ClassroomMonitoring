@@ -9,6 +9,7 @@ import numpy as np
 from collections import deque
 from datetime import datetime
 from pathlib import Path
+from threading import RLock
 from uuid import uuid4
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -25,7 +26,6 @@ from domain.models import (
 	EduAcademicTerm,
 	EduClass,
 	EduLessonSchedule,
-	EduTeacher,
 	MonitorBehaviorEvent,
 	MonitorEventFrame,
 	MonitorSession,
@@ -100,7 +100,10 @@ detect_history = {}
 normal_streak = {}
 # 每座当前告警等级 seat_id: "警告" | "提示" | None
 alert_level_map = {}
+# 启停和 VLM 回写共用一个运行标识，防止旧课次的异步结果污染新课次。
+runtime_lock = RLock()
 persist_state = {
+	"runtime_id": None,
 	"session_id": None,
 	"class_id": None,
 	"seat_db_ids": {},
@@ -174,6 +177,9 @@ def validate_video_source(video_path):
 
 def refresh_runtime_class_config():
 	"""根据已启用班级刷新运行时视频源，管理端保存后立即生效。"""
+	if state["is_running"]:
+		logger.info("[Video] 演示分析运行中，班级视频配置将在停止后刷新")
+		return False
 	try:
 		with db_session() as db:
 			rows = db.query(EduClass).filter(EduClass.enabled == 1).order_by(EduClass.class_code.asc()).all()
@@ -201,8 +207,6 @@ def refresh_runtime_class_config():
 	CLASS_NAME_BY_CODE.clear()
 	CLASS_NAME_BY_CODE.update({ class_code: class_name for class_name, class_code, _ in configs })
 	state["class_list"] = list(CLASS_VIDEOS.keys())
-	if state["is_running"]:
-		return True
 	if state["current_class"] not in CLASS_VIDEOS or previous_video != CLASS_VIDEOS[state["current_class"]]:
 		switch_class(state["class_list"][0] if state["current_class"] not in CLASS_VIDEOS else state["current_class"])
 	return True
@@ -221,7 +225,8 @@ def detection_analysis_loop():
 
 	seat_id_counter = 1
 	while True:
-		if not state["is_running"]:
+		runtime_id = persist_state.get("runtime_id")
+		if not _is_runtime_active(runtime_id):
 			time.sleep(0.5)
 			continue
 
@@ -244,24 +249,27 @@ def detection_analysis_loop():
 
 		# 所有5个类别均参与
 		detections = prediction.object_prediction_list
-		seat_id_counter, _matched_n, _new_n = update_detected_seats(detections, seat_id_counter)
+		with runtime_lock:
+			if not _is_runtime_active(runtime_id):
+				continue
+			seat_id_counter, _matched_n, _new_n = update_detected_seats(detections, seat_id_counter)
 
-		persist_seats()
-		# 根据检测类别更新座位状态并写入事件
-		apply_detect_status(frame)
+			persist_seats()
+			# 根据检测类别更新座位状态并写入事件
+			apply_detect_status(frame)
 
-		state["time"] = time.strftime("%H:%M:%S")
-		# 刷新前端统计卡片数据（按告警等级）
-		state["counts"] = {
-			"total": len(state["seats"]),
-			"focus": sum(1 for v in alert_level_map.values() if v == "警告"),
-			"normal": sum(1 for v in alert_level_map.values() if v == "提示"),
-		}
-		update_session_counts()
+			state["time"] = time.strftime("%H:%M:%S")
+			# 刷新前端统计卡片数据（按告警等级）
+			state["counts"] = {
+				"total": len(state["seats"]),
+				"focus": sum(1 for v in alert_level_map.values() if v == "警告"),
+				"normal": sum(1 for v in alert_level_map.values() if v == "提示"),
+			}
+			update_session_counts()
+			alert_seats = [dict(s) for s in state["seats"] if alert_level_map.get(s["seat_id"]) in ("警告", "提示")]
 
-		# 有异常才送VLM分析
-		alert_seats = [s for s in state["seats"] if alert_level_map.get(s["seat_id"]) in ("警告", "提示")]
-		enqueue_task(frame, alert_seats)
+		# 有异常才送 VLM 分析；运行标识会阻止停止/重启后的旧帧入队。
+		enqueue_task(frame, alert_seats, runtime_id)
 		time.sleep(2.0)
 
 
@@ -364,17 +372,9 @@ def _resolve_course_context(db, class_id, started_at):
 	return None, None, None, None, None, None
 
 
-def start_monitoring(class_name = None, class_code = None, teacher_id = None, operator_user_id = None, operator_name = None):
+def start_monitoring(class_name = None, class_code = None, operator_user_id = None, operator_name = None):
 	"""启动管理员演示分析，并尝试创建或接续课后分析课次。"""
 	target_class = _resolve_runtime_class(class_name, class_code)
-	if target_class != state["current_class"] and target_class in state["class_list"]:
-		switch_class(target_class)
-	state["is_running"] = True
-	reset_detection_state()
-	persist_state["session_id"] = None
-	persist_state["class_id"] = None
-	persist_state["seat_db_ids"] = {}
-	persist_state["event_db_ids"] = {}
 
 	def action():
 		with db_session() as db:
@@ -384,7 +384,7 @@ def start_monitoring(class_name = None, class_code = None, teacher_id = None, op
 				return None
 			started_at = datetime.now()
 			course, schedule, binding, camera, planned_start, planned_end = _resolve_course_context(db, edu_class.id, started_at)
-			teacher = course.teacher if course else (db.query(EduTeacher).filter(EduTeacher.id == teacher_id).first() if teacher_id else None)
+			teacher = course.teacher if course else None
 			session = None
 			if schedule:
 				# 调度器可能已按课表创建待分析课次；管理员演示接续该记录，避免重复课次。
@@ -434,21 +434,39 @@ def start_monitoring(class_name = None, class_code = None, teacher_id = None, op
 			logger.info("[Persist] 监控会话已创建: %s", session.session_no)
 			return session.id
 
-	_safe_persist(action, "创建监控会话")
-	return { "ok": True, "session_id": persist_state["session_id"] }
+	with runtime_lock:
+		if state["is_running"]:
+			raise RuntimeError("已有演示分析正在运行")
+		if target_class != state["current_class"] and target_class in state["class_list"]:
+			switch_class(target_class)
+		reset_detection_state()
+		persist_state["runtime_id"] = uuid4().hex
+		persist_state["session_id"] = None
+		persist_state["class_id"] = None
+		persist_state["seat_db_ids"] = {}
+		persist_state["event_db_ids"] = {}
+		state["is_running"] = True
+		if not _safe_persist(action, "创建监控会话"):
+			state["is_running"] = False
+			persist_state["runtime_id"] = None
+			raise RuntimeError("无法创建监控课次，请检查教学配置和数据库连接")
+		return { "ok": True, "session_id": persist_state["session_id"] }
 
 
 def stop_monitoring():
 	"""停止监控并结束持久化会话。"""
-	total_seat_count = len(persist_state["seat_db_ids"])
-	warning_count = sum(1 for event in state["events"] if event.get("level") == "警告")
-	notice_count = sum(1 for event in state["events"] if event.get("level") == "提示")
-	event_count = len(state["events"])
-	state["is_running"] = False
-	state["seats"] = []
-	state["events"] = []
-	state["counts"] = { "total": 0, "focus": 0, "normal": 0 }
-	session_id = persist_state.get("session_id")
+	with runtime_lock:
+		total_seat_count = len(persist_state["seat_db_ids"])
+		warning_count = sum(1 for event in state["events"] if event.get("level") == "警告")
+		notice_count = sum(1 for event in state["events"] if event.get("level") == "提示")
+		event_count = len(state["events"])
+		session_id = persist_state.get("session_id")
+		# 先废止运行标识，后台 VLM 即使稍后返回也不会写入后续课次。
+		persist_state["runtime_id"] = None
+		state["is_running"] = False
+		state["seats"] = []
+		state["events"] = []
+		state["counts"] = { "total": 0, "focus": 0, "normal": 0 }
 
 	def action():
 		if not session_id:
@@ -477,6 +495,7 @@ def stop_monitoring():
 	persist_state["class_id"] = None
 	persist_state["seat_db_ids"] = {}
 	persist_state["event_db_ids"] = {}
+	refresh_runtime_class_config()
 	return { "ok": True }
 
 
@@ -609,7 +628,7 @@ def persist_vlm_result(event_payload, answer, raw_response, seat, ts_ns, latency
 		with db_session() as db:
 			event_id = persist_state["event_db_ids"].get(event_uid)
 			event = db.query(MonitorBehaviorEvent).filter(MonitorBehaviorEvent.id == event_id).first() if event_id else None
-			if event:
+			if event and answer.get("status") in ABNORMAL_STATUSES:
 				event.reason = answer.get("reason", event.reason)
 				event.label = answer.get("label", event.label)
 				event.analysis_source = "VLM"
@@ -644,6 +663,14 @@ def update_detected_seats(detections, seat_id_counter):
 
 	# 没有检测框，清空所有座位
 	if detect_num == 0:
+		# 失去目标后同时清理座位关联的判定与送检状态，避免旧告警在下一帧复用。
+		for seat in old_seats:
+			seat_id = seat["seat_id"]
+			review_time_map.pop(seat_id, None)
+			vlm_pending.discard(seat_id)
+			detect_history.pop(seat_id, None)
+			normal_streak.pop(seat_id, None)
+			alert_level_map.pop(seat_id, None)
 		state["seats"] = []
 		return seat_id_counter, 0, 0
 
@@ -827,6 +854,11 @@ def reset_detection_state():
 	state["counts"] = { "total": 0, "focus": 0, "normal": 0 }
 
 
+def _is_runtime_active(runtime_id):
+	with runtime_lock:
+		return bool(runtime_id and state["is_running"] and persist_state.get("runtime_id") == runtime_id)
+
+
 def vlm_worker(worker_id):
 	"""模型处理执行器"""
 	api_key = os.environ.get("ALIYUN_API_KEY")
@@ -842,22 +874,25 @@ def vlm_worker(worker_id):
 	while True:
 		# 等任务,阻塞
 		job = vlm_task_queue.get()
-		# 服务停止后不处理
-		if not state["is_running"]:
+		# 服务停止或已开始新课次后，不再处理旧课次任务。
+		if not _is_runtime_active(job.get("runtime_id")):
 			set_vlm_pending(job["seats"], False)
 			continue
 
 		try:
 			result = invoke_review(vlm, sys_content, job["frame"], job["seats"][0])
-			handle_review_result(result, job["frame"])
+			handle_review_result(result, job["frame"], job.get("runtime_id"))
 		except Exception as exc:
 			logger.error("[VLM-w%d] 分析异常: %s", worker_id, exc, exc_info = True)
 		finally:
 			set_vlm_pending(job["seats"], False)
 
 
-def enqueue_task(frame, seats):
+def enqueue_task(frame, seats, runtime_id = None):
 	"""任务入队列"""
+	runtime_id = runtime_id or persist_state.get("runtime_id")
+	if not _is_runtime_active(runtime_id):
+		return
 	now = time.time()
 	targets = []
 	for seat in seats:
@@ -882,7 +917,7 @@ def enqueue_task(frame, seats):
 	for seat in targets:
 		set_vlm_pending([seat], True)
 		try:
-			vlm_task_queue.put({ "frame": frozen, "seats": [seat] }, block = True, timeout = 3)
+			vlm_task_queue.put({ "frame": frozen, "seats": [seat], "runtime_id": runtime_id }, block = True, timeout = 3)
 			review_time_map[seat["seat_id"]] = now
 			logger.info("[VLM] 入队 %s", seat["seat_code"])
 		except queue.Full:
@@ -891,17 +926,19 @@ def enqueue_task(frame, seats):
 			logger.warning("[VLM] 队列满，丢弃: %s", seat["seat_code"])
 
 
-def handle_review_result(result, frame):
+def handle_review_result(result, frame, runtime_id):
 	"""处理 VLM 返回结果"""
 	if result is None:
 		return False
 	response, seat, ts_ms, latency_ms = result
-	if not state["is_running"]:
+	if not _is_runtime_active(runtime_id):
 		return True
 
 	try:
 		answer = parse_model_json(response)
-		apply_vlm_result(answer, frame, seat, ts_ms, response, latency_ms)
+		with runtime_lock:
+			if _is_runtime_active(runtime_id):
+				apply_vlm_result(answer, frame, seat, ts_ms, response, latency_ms)
 	except Exception as exc:
 		logger.error("[VLM] 结果处理异常: %s %s", seat["seat_code"], exc, exc_info = True)
 	return True
@@ -948,22 +985,19 @@ def apply_vlm_result(answer, frame, seat, ts_ms, raw_response = "", latency_ms =
 	else:
 		target["analysis_source"] = "VLM"
 
+	# 找到该座位最近事件；即使 VLM 判为正常或不确定，也保留审核留痕。
+	event_payload = next((ev for ev in state["events"] if ev["seat"] == target["seat_code"]), None)
 	if answer["status"] in ABNORMAL_STATUSES:
-		# 找到该座位最近的事件，用VLM结果补充reason/label
-		event_payload = None
-		for ev in state["events"]:
-			if ev["seat"] == target["seat_code"]:
-				ev["reason"] = answer.get("reason", ev.get("reason", ""))
-				ev["label"] = answer.get("label", ev.get("label", ""))
-				ev["analysis_source"] = "VLM"
-				ev["source"] = "VLM"
-				event_payload = ev
-				break
+		if event_payload:
+			event_payload["reason"] = answer.get("reason", event_payload.get("reason", ""))
+			event_payload["label"] = answer.get("label", event_payload.get("label", ""))
+			event_payload["analysis_source"] = "VLM"
+			event_payload["source"] = "VLM"
 		else:
 			# 没有事件时回退创建（极少数情况）
 			event_payload = append_event(answer, target, frame, ts_ms)
-		persist_vlm_result(event_payload, answer, raw_response, target, ts_ms, latency_ms)
 		logger.info("[VLM] 确认异常行为: %s %s", target["seat_code"], answer["status"])
+	persist_vlm_result(event_payload, answer, raw_response, target, ts_ms, latency_ms)
 
 
 def append_event(answer, target, frame, ts_ms):

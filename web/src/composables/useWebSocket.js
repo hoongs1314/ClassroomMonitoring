@@ -1,5 +1,6 @@
 import { shallowRef, ref, onMounted, onUnmounted } from 'vue'
 import { resolveApiBase, resolveWebSocketBase } from './apiBase'
+import { handleUnauthorized } from './useApi'
 
 const status = shallowRef(null)
 const isConnected = ref(false)
@@ -77,9 +78,13 @@ export function useWebSocket() {
       }
     }
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       isConnected.value = false
       ws = null
+      if (event.code === 1008) {
+        handleUnauthorized()
+        return
+      }
       if (activeUsers > 0) {
         reconnectAttempts++
         scheduleReconnect(connect)

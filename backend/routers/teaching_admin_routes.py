@@ -22,6 +22,8 @@ from domain.models import (
 
 
 router = APIRouter(prefix = "/api/admin", tags = ["teaching-admin"])
+ACADEMIC_STATUSES = { "ENABLED", "DISABLED" }
+COURSE_STATUSES = { "DRAFT", "ACTIVE", "ARCHIVED" }
 
 
 def _text(body, key):
@@ -49,7 +51,17 @@ def _int(body, key, title, required = True):
 
 def _bool(body, key, default = True):
 	value = (body or {}).get(key)
-	return default if value is None else bool(value)
+	if value is None:
+		return default
+	if isinstance(value, bool):
+		return value
+	if isinstance(value, int) and value in { 0, 1 }:
+		return bool(value)
+	if isinstance(value, str) and value.strip().lower() in { "true", "1" }:
+		return True
+	if isinstance(value, str) and value.strip().lower() in { "false", "0" }:
+		return False
+	raise HTTPException(status_code = 400, detail = f"{key} 必须是布尔值")
 
 
 def _date(body, key, title, required = True):
@@ -143,7 +155,10 @@ def _apply_year(row, body):
 	row.year_name = _required_text(body, "year_name", "学年名称")
 	row.start_date = start_date
 	row.end_date = end_date
-	row.status = _text(body, "status").upper() or "ENABLED"
+	status = _text(body, "status").upper() or "ENABLED"
+	if status not in ACADEMIC_STATUSES:
+		raise HTTPException(status_code = 400, detail = "学年状态无效")
+	row.status = status
 
 
 def _apply_term(db, row, body):
@@ -159,7 +174,10 @@ def _apply_term(db, row, body):
 	row.term_name = _required_text(body, "term_name", "学期名称")
 	row.start_date = start_date
 	row.end_date = end_date
-	row.status = _text(body, "status").upper() or "ENABLED"
+	status = _text(body, "status").upper() or "ENABLED"
+	if status not in ACADEMIC_STATUSES:
+		raise HTTPException(status_code = 400, detail = "学期状态无效")
+	row.status = status
 
 
 def _apply_course(db, row, body):
@@ -198,12 +216,43 @@ def _apply_course(db, row, body):
 			raise HTTPException(status_code = 400, detail = "计划课次必须大于 0")
 	row.start_date = start_date
 	row.end_date = end_date
-	row.status = _text(body, "status").upper() or "DRAFT"
+	status = _text(body, "status").upper() or "DRAFT"
+	if status not in COURSE_STATUSES:
+		raise HTTPException(status_code = 400, detail = "教学课程状态无效")
+	row.status = status
+
+
+def _check_schedule_overlap(db, row, course, weekday, start_time, end_time, enabled):
+	"""同一班级、同一学期内的有效课表不得占用重叠时段。"""
+	if not enabled:
+		return
+	rows = (
+		db.query(EduLessonSchedule, TeachingCourse, EduAcademicTerm)
+		.join(TeachingCourse, TeachingCourse.id == EduLessonSchedule.teaching_course_id)
+		.join(EduAcademicTerm, EduAcademicTerm.id == TeachingCourse.term_id)
+		.filter(
+			EduLessonSchedule.id != (row.id or 0),
+			EduLessonSchedule.enabled == 1,
+			TeachingCourse.class_id == course.class_id,
+			TeachingCourse.term_id == course.term_id,
+			EduLessonSchedule.weekday == weekday,
+			EduLessonSchedule.start_time < end_time,
+			EduLessonSchedule.end_time > start_time,
+		)
+		.all()
+	)
+	new_start = course.start_date or course.term.start_date
+	new_end = course.end_date or course.term.end_date
+	for other_schedule, other_course, term in rows:
+		other_start = other_course.start_date or term.start_date
+		other_end = other_course.end_date or term.end_date
+		if max(new_start, other_start) <= min(new_end, other_end):
+			raise HTTPException(status_code = 409, detail = "同一班级存在时间重叠的有效课表")
 
 
 def _apply_schedule(db, row, body):
 	course_id = _int(body, "teaching_course_id", "教学课程")
-	_get(db, TeachingCourse, course_id, "教学课程")
+	course = _get(db, TeachingCourse, course_id, "教学课程")
 	weekday = _int(body, "weekday", "星期")
 	if weekday not in range(1, 8):
 		raise HTTPException(status_code = 400, detail = "星期必须为 1 至 7")
@@ -211,12 +260,14 @@ def _apply_schedule(db, row, body):
 	end_time = _time_text(body, "end_time", "结束时间")
 	if end_time <= start_time:
 		raise HTTPException(status_code = 400, detail = "结束时间必须晚于开始时间")
+	enabled = _bool(body, "enabled", True)
+	_check_schedule_overlap(db, row, course, weekday, start_time, end_time, enabled)
 	row.teaching_course_id = course_id
 	row.weekday = weekday
 	row.start_time = start_time
 	row.end_time = end_time
 	row.lesson_title = _text(body, "lesson_title") or None
-	row.enabled = 1 if _bool(body, "enabled", True) else 0
+	row.enabled = 1 if enabled else 0
 
 
 def _apply_camera(db, row, body):
