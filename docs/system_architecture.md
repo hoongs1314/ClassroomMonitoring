@@ -1,100 +1,95 @@
-# 系统架构图
+# 课后教学分析系统架构
 
-本文档图表采用 Mermaid 编写，可在 GitHub Markdown、支持 Mermaid 的编辑器或论文写作工具中渲染后导出为图片。
+## 设计定位
+
+系统服务于教师的课后教学复盘。课堂行为识别结果先作为可复查的事件证据保存，再按课次、课程和学期整理为汇总与报告；系统不把实时告警作为教师授课过程中的常规操作入口。
+
+管理员维护教学基础数据、固定周课表、摄像设备与班级有效期绑定。教师从“我的班级”进入自己任教课程的课次档案、课程分析和改进闭环。实时视频页面仅保留为管理员验证检测链路的开发演示入口。
 
 ## 总体架构
 
 ```mermaid
 flowchart TB
-    subgraph client["用户访问层"]
-        browser["教师/管理员浏览器"]
-        ui["Vue 3 前端\nAnt Design Vue\n实时监控/历史复盘"]
-        browser --> ui
+    subgraph Client[访问层]
+        Teacher[教师：我的班级与课后复盘]
+        Admin[管理员：教学配置、设备与演示]
+        Web[Vue 3 + Ant Design Vue]
+        Teacher --> Web
+        Admin --> Web
     end
 
-    subgraph deploy["部署与代理层"]
-        nginx["Nginx 前端容器\n静态资源与反向代理"]
-        compose["Docker Compose\nMySQL + Backend + Frontend"]
+    subgraph API[FastAPI 服务层]
+        Auth[认证与角色鉴权]
+        TeachingAdmin[教学配置路由]
+        TeacherAPI[教师课次档案路由]
+        CourseAPI[课程分析与报告路由]
+        Schedule[固定课表调度器]
+        Demo[演示视频分析服务]
+        Aggregate[课后汇总与课程聚合服务]
     end
 
-    subgraph backend["后端服务层 FastAPI"]
-        app["backend/main.py\n应用入口、CORS、WebSocket、视频流"]
-        auth_router["认证路由\n/api/auth"]
-        teacher_router["教师业务路由\n/api/teacher"]
-        core["core\n配置、数据库、鉴权依赖、启动引导"]
-        monitor_service["services/monitor_service.py\n实时检测、状态维护、事件持久化"]
-        video_stream["services/video_stream_util.py\n本地视频源读取与切换"]
+    subgraph Intelligence[分析组件]
+        YOLO[YOLO + SAHI 行为检测]
+        Rules[座位关联与滑动窗口规则]
+        VLM[VLM 截图复核]
     end
 
-    subgraph ai["智能分析层"]
-        yolo["YOLO + SAHI\n座位/行为检测"]
-        rules["滑动窗口规则\n告警等级判定"]
-        vlm["通义千问 VL 模型\n异常截图语义复核"]
-        prompt["prompts/vlm_system_prompt.md\n多模态复核提示词"]
+    subgraph Data[数据与资产]
+        MySQL[(MySQL：教学、课次、事件、报告)]
+        Camera[固定摄像设备与录像来源]
+        DemoVideo[inputs：开发演示视频]
+        Model[models：本地模型权重]
+        Evidence[outputs/event_crops：事件截图]
     end
 
-    subgraph data["数据与文件层"]
-        mysql["MySQL\n用户、权限、监控会话、事件、复盘"]
-        inputs["inputs\n测试视频源"]
-        models["models\ngmn26n-behavior.pt"]
-        outputs["outputs/event_crops\n异常事件截图"]
-        schema["db/001_init_mysql.sql\n初始化表结构"]
-    end
-
-    ui -->|"HTTP REST /api"| nginx
-    ui -->|"WebSocket /ws"| nginx
-    ui -->|"MJPEG /video_feed"| nginx
-    nginx --> app
-    compose -.-> nginx
-    compose -.-> app
-    compose -.-> mysql
-
-    app --> auth_router
-    app --> teacher_router
-    app --> core
-    app --> monitor_service
-    monitor_service --> video_stream
-    monitor_service --> yolo
-    monitor_service --> rules
-    monitor_service --> vlm
-    vlm --> prompt
-
-    core --> mysql
-    auth_router --> mysql
-    teacher_router --> mysql
-    monitor_service --> mysql
-    video_stream --> inputs
-    yolo --> models
-    monitor_service --> outputs
-    schema -.-> mysql
+    Web --> Auth
+    Web --> TeachingAdmin
+    Web --> TeacherAPI
+    Web --> CourseAPI
+    TeachingAdmin --> MySQL
+    TeacherAPI --> MySQL
+    CourseAPI --> MySQL
+    Schedule --> MySQL
+    Demo --> MySQL
+    Aggregate --> MySQL
+    Camera --> Schedule
+    DemoVideo --> Demo
+    Model --> YOLO
+    Demo --> YOLO --> Rules --> VLM
+    Demo --> Evidence
+    Aggregate --> Evidence
 ```
-## 实时监控处理链路
+
+## 课表到课程报告的数据链路
 
 ```mermaid
 sequenceDiagram
-    participant U as 教师/管理员
-    participant F as Vue 前端
-    participant A as FastAPI 后端
-    participant S as MonitorService
-    participant D as YOLO/SAHI 检测
-    participant V as VLM 复核
+    participant A as 管理员
+    participant T as 课表调度器
+    participant W as 离线分析执行器
+    participant S as 汇总服务
+    participant R as 教师
     participant DB as MySQL
-    participant FS as outputs/event_crops
 
-    U->>F: 登录并选择班级
-    F->>A: POST /api/start
-    A->>A: 校验 token 与班级启动权限
-    A->>S: start_monitoring
-    S->>DB: 创建 monitor_session
-    S->>S: 后台读取视频帧
-    S->>D: 分片目标检测
-    D-->>S: 行为类别与检测框
-    S->>S: 滑动窗口判定告警等级
-    S->>FS: 保存异常截图
-    S->>DB: 写入座位、事件和截图记录
-    S->>V: 发送异常截图复核
-    V-->>S: 返回 JSON 语义判断
-    S->>DB: 更新事件说明与 VLM 复核记录
-    A-->>F: WebSocket 推送状态、座位和事件
-    F-->>U: 展示实时视频、检测框和异常通知
+    A->>DB: 维护学年、学期、班级、课程、固定课表与摄像头绑定
+    T->>DB: 在有效课表时段创建 SCHEDULED/PENDING 课次
+    W->>DB: 读取课次对应录像，写入座位、事件与复核结果
+    S->>DB: 写入课次汇总、课程分析条目、聚合和报告草稿
+    R->>DB: 按班级查看当前课程、课次档案与课程报告
+    R->>DB: 填写教学观察、改进措施与验证说明
 ```
+
+其中，固定课表调度、教学课程权限、课次档案和课程报告的数据关系已实现；真实录像离线分析执行器仍需在接入受控录像源后实现。开发演示分析结束时可以调用相同的汇总服务生成课后资料，但不等同于真实课堂录像的端到端验证。
+
+## 权限与数据边界
+
+- 管理员拥有教学配置、设备绑定、账号与班级授权、全局课次档案和演示分析入口。
+- 教师的“我的班级”根据 `teaching_course.teacher_id` 聚合；当前课程按当前本地时间、有效学期和固定课表匹配。
+- 课程报告、课程分析条目和按课程筛选的课次档案以教学课程为权限边界；同班不同课程的记录不会混入。
+- 班级授权可用于查看班级级课次档案；教学课程分析还要求课程已分配给该教师。
+
+## 当前验证范围与限制
+
+- 已验证：路由注册、角色鉴权主路径、课表与课程管理接口、课程分析接口、前端构建、现有自动化测试和运行中 API 冒烟检查。
+- 待验证：真实摄像机或录播视频的离线处理器、模型与 VLM 的真实端到端调用、长时间运行、多课堂并发、权限矩阵的端到端回归。
+- 已知复核项：课表调度器的“已结束课次”状态转换缺少专门自动化测试；当前代码的事务边界需要在后续修复后再做专项验证，不能将其视为已完成的离线处理闭环。

@@ -1,93 +1,53 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1040" viewBox="0 0 1600 1040">
   <defs>
-    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#52616b"/>
-    </marker>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="#52616b"/></marker>
     <style>
-      .title { font-family: 'Microsoft YaHei','SimHei',sans-serif; font-size: 32px; font-weight: 700; fill: #1f2933; }
-      .subtitle { font-family: 'Microsoft YaHei','SimHei',sans-serif; font-size: 17px; fill: #52616b; }
-      .box-title { font-family: 'Microsoft YaHei','SimHei',sans-serif; font-size: 19px; font-weight: 700; fill: #24313a; }
-      .box-text { font-family: 'Microsoft YaHei','SimHei',sans-serif; font-size: 15px; fill: #425466; }
-      .note { font-family: 'Microsoft YaHei','SimHei',sans-serif; font-size: 14px; fill: #5f6c72; }
-      .line { stroke: #52616b; stroke-width: 2.6; fill: none; marker-end: url(#arrow); }
-      .dashed { stroke: #6f8791; stroke-width: 2.4; fill: none; stroke-dasharray: 8 7; marker-end: url(#arrow); }
-      .tag { font-family: 'Microsoft YaHei','SimHei',sans-serif; font-size: 16px; font-weight: 700; fill: #425466; }
+      .title{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:32px;font-weight:700;fill:#1f2933}.sub{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:17px;fill:#52616b}.head{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:21px;font-weight:700;fill:#24313a}.txt{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:16px;fill:#425466}.note{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:14px;fill:#5f6c72}.line{stroke:#52616b;stroke-width:2.7;fill:none;marker-end:url(#arrow)}.dash{stroke:#7d949e;stroke-width:2.4;fill:none;stroke-dasharray:8 7;marker-end:url(#arrow)}.tag{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:16px;font-weight:700;fill:#5b717b}
     </style>
   </defs>
+  <rect width="1600" height="1040" fill="#fff"/>
+  <text x="800" y="56" text-anchor="middle" class="title">课表到课程复盘业务流程图</text>
+  <text x="800" y="84" text-anchor="middle" class="sub">教学主数据建立课次归属，事件证据进入课程聚合；离线录像执行器为待接入环节</text>
 
-  <rect width="1600" height="1040" fill="#ffffff"/>
-  <text x="800" y="56" text-anchor="middle" class="title">课堂视频分析与异常事件处理流程图</text>
-  <text x="800" y="84" text-anchor="middle" class="subtitle">监控服务以周期性检测、连续状态判定和异常复核组织业务流程</text>
+  <rect x="80" y="176" width="230" height="128" rx="16" fill="#e8f0f3" stroke="#66818d" stroke-width="2.2"/>
+  <text x="195" y="218" text-anchor="middle" class="head">管理员教学配置</text>
+  <text x="195" y="251" text-anchor="middle" class="txt">学年、学期、班级与课程</text>
+  <text x="195" y="279" text-anchor="middle" class="txt">固定课表与设备绑定</text>
+  <rect x="410" y="176" width="230" height="128" rx="16" fill="#e8f0f3" stroke="#66818d" stroke-width="2.2"/>
+  <text x="525" y="218" text-anchor="middle" class="head">任课教师归属</text>
+  <text x="525" y="251" text-anchor="middle" class="txt">教学课程关联教师</text>
+  <text x="525" y="279" text-anchor="middle" class="txt">班级卡片按班级聚合</text>
+  <rect x="740" y="176" width="230" height="128" rx="16" fill="#e8f0f3" stroke="#66818d" stroke-width="2.2"/>
+  <text x="855" y="218" text-anchor="middle" class="head">固定课表调度</text>
+  <text x="855" y="251" text-anchor="middle" class="txt">匹配学期、星期和课时</text>
+  <text x="855" y="279" text-anchor="middle" class="txt">创建待处理课次</text>
+  <rect x="1070" y="176" width="260" height="128" rx="16" fill="#fff9e8" stroke="#b49a62" stroke-width="2.2" stroke-dasharray="8 6"/>
+  <text x="1200" y="218" text-anchor="middle" class="head">真实录像离线执行器</text>
+  <text x="1200" y="251" text-anchor="middle" class="txt">读取录像、模型推理与回写</text>
+  <text x="1200" y="279" text-anchor="middle" class="note">待接入，尚无端到端实验结论</text>
 
-  <rect x="76" y="148" width="210" height="92" rx="46" fill="#e8f0f3" stroke="#66818d" stroke-width="2.2"/>
-  <text x="181" y="188" text-anchor="middle" class="box-title">教师登录并选择班级</text>
-  <text x="181" y="216" text-anchor="middle" class="box-text">发起启动监控请求</text>
+  <rect x="355" y="464" width="260" height="132" rx="16" fill="#e8f0f3" stroke="#66818d" stroke-width="2.2"/>
+  <text x="485" y="507" text-anchor="middle" class="head">课次与事件证据</text>
+  <text x="485" y="540" text-anchor="middle" class="txt">座位、行为事件、截图与 VLM 复核</text>
+  <text x="485" y="569" text-anchor="middle" class="txt">分析运行、摘要与行为统计</text>
+  <rect x="745" y="464" width="260" height="132" rx="16" fill="#e8f0f3" stroke="#66818d" stroke-width="2.2"/>
+  <text x="875" y="507" text-anchor="middle" class="head">课程分析聚合</text>
+  <text x="875" y="540" text-anchor="middle" class="txt">课次条目、周期汇总与来源追溯</text>
+  <text x="875" y="569" text-anchor="middle" class="txt">同班不同科目保持隔离</text>
+  <rect x="1135" y="464" width="260" height="132" rx="16" fill="#e8f0f3" stroke="#66818d" stroke-width="2.2"/>
+  <text x="1265" y="507" text-anchor="middle" class="head">教师课程复盘</text>
+  <text x="1265" y="540" text-anchor="middle" class="txt">课程报告、教学观察与改进措施</text>
+  <text x="1265" y="569" text-anchor="middle" class="txt">措施验证关联来源课次</text>
 
-  <rect x="370" y="140" width="245" height="108" rx="14" fill="#f5f8f9" stroke="#8ca3ad" stroke-width="2"/>
-  <text x="493" y="182" text-anchor="middle" class="box-title">身份与班级权限校验</text>
-  <text x="493" y="212" text-anchor="middle" class="box-text">解析令牌，确认可启动范围</text>
+  <rect x="615" y="756" width="370" height="132" rx="16" fill="#f2f6f7" stroke="#66818d" stroke-width="2.2"/>
+  <text x="800" y="798" text-anchor="middle" class="head">教师“我的班级”课后入口</text>
+  <text x="800" y="831" text-anchor="middle" class="txt">按请求时刻匹配当前课程，查看课次档案、汇总和课程报告</text>
+  <text x="800" y="860" text-anchor="middle" class="note">班级统计可以汇总；报告与措施始终以教学课程为边界</text>
 
-  <rect x="700" y="140" width="220" height="108" rx="14" fill="#f5f8f9" stroke="#8ca3ad" stroke-width="2"/>
-  <text x="810" y="182" text-anchor="middle" class="box-title">创建监控会话</text>
-  <text x="810" y="212" text-anchor="middle" class="box-text">切换视频源并重置状态</text>
-
-  <rect x="1005" y="140" width="250" height="108" rx="14" fill="#f5f8f9" stroke="#8ca3ad" stroke-width="2"/>
-  <text x="1130" y="182" text-anchor="middle" class="box-title">视频帧持续读取</text>
-  <text x="1130" y="212" text-anchor="middle" class="box-text">更新当前帧与图像尺寸</text>
-
-  <rect x="690" y="326" width="240" height="108" rx="14" fill="#edf3f5" stroke="#66818d" stroke-width="2"/>
-  <text x="810" y="368" text-anchor="middle" class="box-title">YOLO 与 SAHI 检测</text>
-  <text x="810" y="398" text-anchor="middle" class="box-text">输出类别、边界框与置信度</text>
-
-  <rect x="690" y="506" width="240" height="108" rx="14" fill="#edf3f5" stroke="#66818d" stroke-width="2"/>
-  <text x="810" y="548" text-anchor="middle" class="box-title">座位关联与状态更新</text>
-  <text x="810" y="578" text-anchor="middle" class="box-text">匈牙利算法匹配连续座位</text>
-
-  <rect x="690" y="686" width="240" height="108" rx="14" fill="#edf3f5" stroke="#66818d" stroke-width="2"/>
-  <text x="810" y="728" text-anchor="middle" class="box-title">滑动窗口规则判定</text>
-  <text x="810" y="758" text-anchor="middle" class="box-text">生成正常、提示或警告状态</text>
-
-  <path d="M1120 707 L1224 758 L1120 809 L1016 758 Z" fill="#fff9e8" stroke="#9a7d42" stroke-width="2.2"/>
-  <text x="1120" y="753" text-anchor="middle" class="box-title">达到异常</text>
-  <text x="1120" y="779" text-anchor="middle" class="box-title">阈值？</text>
-
-  <rect x="1310" y="674" width="218" height="166" rx="14" fill="#f5f8f9" stroke="#8ca3ad" stroke-width="2"/>
-  <text x="1419" y="714" text-anchor="middle" class="box-title">保存实时状态</text>
-  <text x="1419" y="747" text-anchor="middle" class="box-text">更新座位、统计与事件列表</text>
-  <text x="1419" y="776" text-anchor="middle" class="box-text">经 WebSocket 推送前端</text>
-  <text x="1419" y="813" text-anchor="middle" class="note">等待下一轮周期检测</text>
-
-  <rect x="720" y="880" width="238" height="112" rx="14" fill="#f5f8f9" stroke="#8ca3ad" stroke-width="2"/>
-  <text x="839" y="920" text-anchor="middle" class="box-title">事件留痕</text>
-  <text x="839" y="949" text-anchor="middle" class="box-text">保存截图、事件与帧记录</text>
-  <text x="839" y="975" text-anchor="middle" class="box-text">写入 MySQL 与文件目录</text>
-
-  <rect x="1010" y="880" width="238" height="112" rx="14" fill="#f5f8f9" stroke="#8ca3ad" stroke-width="2"/>
-  <text x="1129" y="920" text-anchor="middle" class="box-title">VLM 异常复核</text>
-  <text x="1129" y="949" text-anchor="middle" class="box-text">局部截图进入任务队列</text>
-  <text x="1129" y="975" text-anchor="middle" class="box-text">补充标签与原因说明</text>
-
-  <rect x="1300" y="880" width="238" height="112" rx="14" fill="#f5f8f9" stroke="#8ca3ad" stroke-width="2"/>
-  <text x="1419" y="920" text-anchor="middle" class="box-title">历史查询与教学复盘</text>
-  <text x="1419" y="949" text-anchor="middle" class="box-text">查看会话、事件和截图</text>
-  <text x="1419" y="975" text-anchor="middle" class="box-text">保存教师复盘内容</text>
-
-  <path d="M286 194 H370" class="line"/>
-  <path d="M615 194 H700" class="line"/>
-  <path d="M920 194 H1005" class="line"/>
-  <path d="M1130 248 V280 H810 V326" class="line"/>
-  <path d="M810 434 V506" class="line"/>
-  <path d="M810 614 V686" class="line"/>
-  <path d="M930 758 H1016" class="line"/>
-  <path d="M1224 758 H1310" class="line"/>
-  <text x="1261" y="744" text-anchor="middle" class="tag">否</text>
-  <path d="M1120 809 V838 H839 V880" class="line"/>
-  <text x="1097" y="845" text-anchor="middle" class="tag">是</text>
-  <path d="M958 936 H1010" class="line"/>
-  <path d="M1248 936 H1300" class="line"/>
-  <path d="M1419 840 V880" class="dashed"/>
-  <path d="M1419 674 V576 H976 V434 H930" class="dashed"/>
-  <text x="1105" y="560" text-anchor="middle" class="note">持续运行时进入下一轮检测</text>
-
-  <text x="75" y="1020" class="note">说明：异常复核仅针对达到滑动窗口告警条件的座位执行；阈值与实际效果以运行记录为准。</text>
+  <path d="M310 240 H410" class="line"/><path d="M640 240 H740" class="line"/><path d="M970 240 H1070" class="dash"/>
+  <path d="M1200 304 V382 H485 V464" class="dash"/><path d="M615 530 H745" class="line"/><path d="M1005 530 H1135" class="line"/>
+  <path d="M1265 596 V692 H800 V756" class="line"/><path d="M855 304 V382 H485 V464" class="line"/>
+  <text x="650" y="366" text-anchor="middle" class="tag">已实现：课表创建待处理课次</text>
+  <text x="1025" y="405" text-anchor="middle" class="tag">待接入：录像处理后写入事件证据</text>
+  <text x="800" y="976" text-anchor="middle" class="note">说明：图中实线表示当前教学配置、课程权限、课次归属和课程复盘的数据关系；虚线表示尚待接入的真实录像离线分析环节。</text>
 </svg>

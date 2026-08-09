@@ -16,8 +16,9 @@
 
 ## 文档清单
 
-- `system_architecture.md`：系统架构图和实时监控处理链路。
-- `database_er.md`：数据库 ER 图和表关系说明。
+- `system_architecture.md`：课后教学分析架构、课表到课程报告的数据链路、权限边界与验证限制。
+- `database_er.md`：教学课程、固定课表、摄像头绑定、课次分析和课程复盘的 ER 图与约束说明。
 - `thesis_classroom_monitoring.md`：毕业设计论文源稿。
 - `experiment_record.md`：数据集、训练与评估的真实记录。
+- `system_review_2026-08-09.md`：当前实现的整体复核结论、自动化测试证据与后续修复项。
 - `defense/`：答辩 PPTX、PDF 与使用说明。
