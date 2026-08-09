@@ -29,9 +29,12 @@ from services.monitor_service import (
 	switch_class,
 	websocket_clients,
 )
+from services.schedule_service import schedule_worker_loop
 from routers.auth_routes import router as auth_router
 from routers.admin_routes import router as admin_router
 from routers.teacher_routes import router as teacher_router
+from routers.teaching_admin_routes import router as teaching_admin_router
+from routers.course_analysis_routes import router as course_analysis_router
 
 logger = logging.getLogger("monitor.service")
 # Worker数量
@@ -169,12 +172,13 @@ def build_status_payload():
 
 
 def start_background_threads():
-	"""启动帧读取、检测分析和 VLM 线程"""
+	"""启动演示监控、课表调度和 VLM 线程。"""
 	threading.Thread(target = frame_loader_worker, daemon = True).start()
 	threading.Thread(target = detection_analysis_loop, daemon = True).start()
+	threading.Thread(target = schedule_worker_loop, daemon = True).start()
 	for worker_id in range(1, VLM_WORKER_COUNT + 1):
 		threading.Thread(target = vlm_worker, args = (worker_id,), daemon = True).start()
-	logger.info("[App] 后台线程已启动: 帧读取 + 检测 + %d个VLM", VLM_WORKER_COUNT)
+	logger.info("[App] 后台线程已启动: 帧读取 + 检测 + 课表调度 + %d个VLM", VLM_WORKER_COUNT)
 
 
 async def broadcast_status_loop():
@@ -216,7 +220,9 @@ app.add_middleware(
 app.mount("/event_crops", StaticFiles(directory = str(EVENT_CROP_DIR)), name = "event_crops")
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(teaching_admin_router)
 app.include_router(teacher_router)
+app.include_router(course_analysis_router)
 
 
 @app.websocket("/ws")

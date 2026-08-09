@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from core.database import get_db
 from core.date_utils import parse_date_range
 from core.dependencies import get_current_context, is_admin, parse_header_int
-from domain.models import EduClass, EduTeacher, EduTeacherClass, MonitorBehaviorEvent, MonitorEventFrame, MonitorSession, MonitorTeachingReview
+from domain.models import EduClass, EduTeacher, EduTeacherClass, MonitorBehaviorEvent, MonitorEventFrame, MonitorSession, MonitorTeachingReview, TeachingCourse
 
 
 router = APIRouter(prefix = "/api/teacher", tags = ["teacher"])
@@ -36,10 +36,30 @@ def _ensure_session_access(db, context, session_id):
 	session = db.query(MonitorSession).filter(MonitorSession.id == session_id).first()
 	if not session:
 		raise HTTPException(status_code = 404, detail = "监控记录不存在")
+	if is_admin(context):
+		return session
+	teacher = context.get("teacher")
+	# 课表生成的课次优先按教学课程判定归属，保证教师能查看自己任教课程的档案。
+	if teacher and session.teaching_course_id:
+		course = db.query(TeachingCourse).filter(TeachingCourse.id == session.teaching_course_id, TeachingCourse.teacher_id == teacher.id).first()
+		if course:
+			return session
 	allowed = _allowed_class_ids(db, context)
 	if allowed is not None and session.class_id not in allowed:
 		raise HTTPException(status_code = 403, detail = "无权访问该班级监控记录")
 	return session
+
+
+def _ensure_teaching_course_access(db, context, course_id):
+	course = db.query(TeachingCourse).filter(TeachingCourse.id == course_id).first()
+	if not course:
+		raise HTTPException(status_code = 404, detail = "教学课程不存在")
+	if is_admin(context):
+		return course
+	teacher = context.get("teacher")
+	if not teacher or course.teacher_id != teacher.id:
+		raise HTTPException(status_code = 403, detail = "无权访问该教学课程的课次档案")
+	return course
 
 
 def _ensure_review_teacher(db, context, session, teacher_id = None):
@@ -99,6 +119,7 @@ def teacher_classes(context = Depends(get_current_context), db: Session = Depend
 @router.get("/sessions")
 def teacher_sessions(
 	x_class_id = Header(default = None, alias = "X-Class-Id"),
+	x_teaching_course_id = Header(default = None, alias = "X-Teaching-Course-Id"),
 	x_start_date = Header(default = None, alias = "X-Start-Date"),
 	x_end_date = Header(default = None, alias = "X-End-Date"),
 	x_page_no = Header(default = "1", alias = "X-Page-No"),
@@ -107,6 +128,7 @@ def teacher_sessions(
 	db: Session = Depends(get_db),
 ):
 	class_id = parse_header_int(x_class_id, "X-Class-Id")
+	teaching_course_id = parse_header_int(x_teaching_course_id, "X-Teaching-Course-Id")
 	page_no = max(parse_header_int(x_page_no, "X-Page-No") or 1, 1)
 	page_size = min(max(parse_header_int(x_page_size, "X-Page-Size") or 20, 1), 100)
 	try:
@@ -115,7 +137,10 @@ def teacher_sessions(
 		raise HTTPException(status_code = 400, detail = str(exc)) from exc
 	allowed = _allowed_class_ids(db, context)
 	query = db.query(MonitorSession)
-	if allowed is not None:
+	if teaching_course_id:
+		_ensure_teaching_course_access(db, context, teaching_course_id)
+		query = query.filter(MonitorSession.teaching_course_id == teaching_course_id)
+	elif allowed is not None:
 		if not allowed:
 			return {
 				"ok": True,
@@ -164,7 +189,11 @@ def teacher_sessions(
 				"class_id": row.class_id,
 				"class_name": row.class_name,
 				"teacher_name": row.teacher_name,
+				"teaching_course_id": row.teaching_course_id,
+				"subject_name": row.subject_name,
+				"lesson_title": row.lesson_title,
 				"status": row.status,
+				"analysis_status": row.analysis_status,
 				"started_at": row.started_at,
 				"ended_at": row.ended_at,
 				"total_seat_count": row.total_seat_count,

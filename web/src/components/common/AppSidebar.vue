@@ -8,6 +8,8 @@ import {
   HistoryOutlined,
   LogoutOutlined,
   SettingOutlined,
+  ReadOutlined,
+  CalendarOutlined,
 } from '@ant-design/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useWebSocket } from '@/composables/useWebSocket'
@@ -56,6 +58,7 @@ onMounted(async () => {
 
 const currentClassName = computed(() => status.value?.current_class || activeClass.value)
 const navSelected = computed(() => [route.name || 'monitor'])
+const showDemoClassSelector = computed(() => route.name === 'monitor')
 
 function handleSelect(cls) {
   const selected = classList.value.find((item) => item.class_name === cls) || normalizeClass(cls)
@@ -76,7 +79,7 @@ function handleLogout() {
       <div class="logo-icon">
         <VideoCameraFilled />
       </div>
-      <span v-show="!collapsed" class="logo-text">课堂监测</span>
+      <span v-show="!collapsed" class="logo-text">课后教学分析</span>
     </div>
 
     <div class="sidebar-section">
@@ -87,21 +90,30 @@ function handleLogout() {
         theme="dark"
         class="sidebar-menu compact"
       >
-        <a-menu-item key="monitor" @click="router.push({ name: 'monitor' })">
-          <template #icon><VideoCameraFilled /></template>
-          <span>实时监控</span>
+        <a-menu-item key="classes" @click="router.push({ name: 'classes' })">
+          <template #icon><ReadOutlined /></template>
+          <span>我的班级</span>
         </a-menu-item>
-        <a-menu-item key="history" @click="router.push({ name: 'history' })">
+        <a-menu-item v-if="isAdmin" key="history" @click="router.push({ name: 'history' })">
           <template #icon><HistoryOutlined /></template>
-          <span>历史复盘</span>
+          <span>全局课次档案</span>
+        </a-menu-item>
+        <a-menu-item v-if="isAdmin" key="monitor" @click="router.push({ name: 'monitor' })">
+          <template #icon><VideoCameraFilled /></template>
+          <span>演示监控</span>
         </a-menu-item>
         <a-menu-item v-if="isAdmin" key="admin" @click="router.push({ name: 'admin' })">
           <template #icon><SettingOutlined /></template>
           <span>账号与班级管理</span>
         </a-menu-item>
+        <a-menu-item v-if="isAdmin" key="teaching-setup" @click="router.push({ name: 'teaching-setup' })">
+          <template #icon><CalendarOutlined /></template>
+          <span>教学与设备配置</span>
+        </a-menu-item>
       </a-menu>
-      <span v-show="!collapsed" class="section-label">监控班级</span>
+      <span v-if="showDemoClassSelector" v-show="!collapsed" class="section-label">演示班级</span>
       <a-menu
+        v-if="showDemoClassSelector"
         :selected-keys="[currentClassName]"
         :inline-collapsed="collapsed"
         mode="inline"
