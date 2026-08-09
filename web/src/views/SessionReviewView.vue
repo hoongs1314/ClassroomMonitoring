@@ -26,7 +26,7 @@ const sessionId = () => route.query.sessionId
 
 async function loadData() {
   if (!sessionId()) {
-    message.error('缺少监控记录')
+    message.error('缺少课次记录')
     router.replace({ name: 'history' })
     return
   }
@@ -42,7 +42,7 @@ async function loadData() {
     events.value = eventData.events || []
     if (reviewData.review) review.value = { ...review.value, ...reviewData.review }
   } catch (error) {
-    message.error(error.message || '加载复盘数据失败')
+    message.error(error.message || '加载课后分析数据失败')
   } finally {
     loading.value = false
   }
@@ -57,7 +57,7 @@ async function saveReview() {
       body: JSON.stringify(review.value),
     })
     review.value = { ...review.value, ...(data.review || {}) }
-    message.success('复盘已保存')
+    message.success('课后记录已保存')
   } catch (error) {
     message.error(error.message || '保存失败')
   } finally {
@@ -87,14 +87,14 @@ onMounted(loadData)
 
 <template>
   <div class="review-view">
-    <a-button class="back-btn" @click="router.push({ name: 'history' })">返回历史</a-button>
+    <a-button class="back-btn" @click="router.push({ name: 'history' })">返回课次档案</a-button>
 
     <a-spin :spinning="loading">
       <section v-if="session" class="summary-band">
         <div>
-          <h1>{{ session.class_name }} 课堂复盘</h1>
+          <h1>{{ session.class_name }} 课后分析报告</h1>
           <p>开始时间：{{ session.started_at || '-' }}</p>
-          <p>结束时间：{{ session.ended_at || '监控尚未正常结束' }}</p>
+          <p>结束时间：{{ session.ended_at || '课次尚未正常结束' }}</p>
         </div>
         <div class="summary-grid">
           <div><span>学生</span><strong>{{ session.total_seat_count }}</strong></div>
@@ -125,7 +125,7 @@ onMounted(loadData)
 
         <section class="panel">
           <div class="panel-bar">
-            <h2>教学复盘</h2>
+            <h2>教师课后记录</h2>
           </div>
           <div class="form-stack">
             <label>教学效果评分</label>
@@ -136,7 +136,7 @@ onMounted(loadData)
             <a-textarea v-model:value="review.problem_summary" :rows="4" />
             <label>改进计划</label>
             <a-textarea v-model:value="review.improvement_plan" :rows="4" />
-            <a-button type="primary" :loading="saving" @click="saveReview">保存复盘</a-button>
+            <a-button type="primary" :loading="saving" @click="saveReview">保存记录</a-button>
           </div>
         </section>
       </main>

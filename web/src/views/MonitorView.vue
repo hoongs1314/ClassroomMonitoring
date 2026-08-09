@@ -68,11 +68,11 @@ const phaseText = computed(() => {
   if (!status.value) return '-'
   const map = {
     init: '正在建立座位图',
-    monitor: '正在监控',
-    done: '监控完成',
+    monitor: '正在分析演示视频',
+    done: '演示分析完成',
     error: '运行失败',
   }
-  return map[status.value.phase] || (status.value.is_running ? '正在监控' : '待启动')
+  return map[status.value.phase] || (status.value.is_running ? '正在分析演示视频' : '待启动')
 })
 
 const phaseType = computed(() => {
@@ -120,7 +120,7 @@ async function startMonitor() {
       result = await requestJson('/api/monitor/start', { method: 'POST', headers })
     }
     monitorStarted.value = true
-    message.success(result?.message || '监控已启动')
+    message.success(result?.message || '演示分析已启动')
   } catch (error) {
     message.error(error.message || '启动失败')
   } finally {
@@ -139,7 +139,7 @@ async function stopMonitor() {
     // ignore
   }
   monitorStarted.value = false
-  message.success('监控已停止')
+  message.success('演示分析已停止，课后结果已归档')
 }
 
 function openSeatMap() {
@@ -156,8 +156,8 @@ function openSeatMap() {
           <SafetyCertificateOutlined />
         </div>
         <div>
-          <h1 class="brand-title">课堂异常行为监测系统</h1>
-          <p class="brand-subtitle">AI 智能识别 · 实时预警 · 规范课堂秩序</p>
+          <h1 class="brand-title">课堂行为课后分析演示</h1>
+          <p class="brand-subtitle">AI 智能识别 · 演示视频分析 · 课后教学复盘</p>
         </div>
       </div>
 
@@ -170,9 +170,9 @@ function openSeatMap() {
           {{ phaseText }}
         </a-tag>
         <a-button v-if="!monitorStarted && !status?.is_running" type="primary" :loading="starting" @click="startMonitor">
-          启动监控
+          启动演示分析
         </a-button>
-        <a-button v-else danger @click="stopMonitor">停止监控</a-button>
+        <a-button v-else danger @click="stopMonitor">结束演示分析</a-button>
       </div>
     </header>
 
@@ -183,7 +183,7 @@ function openSeatMap() {
         <div class="panel-bar">
           <h2 class="panel-title">
             <span class="title-icon"><DesktopOutlined /></span>
-            主监控画面
+            演示分析画面
           </h2>
           <span class="panel-time">{{ status?.current_time || status?.time || '--:--:--' }}</span>
         </div>
@@ -204,7 +204,7 @@ function openSeatMap() {
           <div class="panel-bar">
             <h2 class="panel-title">
               <span class="title-icon"><DashboardOutlined /></span>
-              实时统计
+              当前统计
             </h2>
           </div>
           <div class="stats-grid">
@@ -235,7 +235,7 @@ clickable
           <div class="panel-bar">
             <h2 class="panel-title">
               <span class="title-icon"><BulbOutlined /></span>
-              异常行为通知
+              识别事件
             </h2>
           </div>
           <EventList :events="events" />

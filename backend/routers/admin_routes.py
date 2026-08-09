@@ -134,12 +134,14 @@ def _ensure_class_not_running(row):
 def _apply_class_data(db, row, body):
 	class_code = _require_text(body, "class_code", "班级编码")
 	class_name = _require_text(body, "class_name", "班级名称")
-	video_path = _require_text(body, "default_video_path", "视频源路径")
+	video_path = _text(body, "default_video_path")
 	_check_class_identity(db, class_code, class_name, row.id)
-	try:
-		normalized_video_path = validate_video_source(video_path)
-	except ValueError as exc:
-		raise HTTPException(status_code = 400, detail = str(exc))
+	normalized_video_path = None
+	if video_path:
+		try:
+			normalized_video_path = validate_video_source(video_path)
+		except ValueError as exc:
+			raise HTTPException(status_code = 400, detail = str(exc))
 
 	head_teacher_id = _int(body, "head_teacher_id")
 	if head_teacher_id is not None:
@@ -148,7 +150,11 @@ def _apply_class_data(db, row, body):
 	row.class_name = class_name
 	row.grade_name = _text(body, "grade_name") or None
 	row.academic_year = _text(body, "academic_year") or None
-	row.default_video_path = normalized_video_path
+	# 摄像设备成为正式视频来源；旧字段仅保留实时演示兼容，班级不再强制配置测试视频。
+	if normalized_video_path:
+		row.default_video_path = normalized_video_path
+	elif not row.id:
+		row.default_video_path = None
 	row.enabled = 1 if _bool(body, "enabled", True) else 0
 	row.head_teacher_id = head_teacher_id
 

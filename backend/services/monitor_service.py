@@ -20,15 +20,21 @@ from scipy.optimize import linear_sum_assignment
 from core.database import db_session
 from core.paths import REPO_ROOT
 from domain.models import (
+	CameraClassBinding,
+	CameraDevice,
+	EduAcademicTerm,
 	EduClass,
+	EduLessonSchedule,
 	EduTeacher,
 	MonitorBehaviorEvent,
 	MonitorEventFrame,
 	MonitorSession,
 	MonitorSessionSeat,
 	MonitorVlmReview,
+	TeachingCourse,
 )
 from services.video_stream_util import MockMonitorStream
+from services.teaching_analysis_service import finalize_lesson_analysis
 
 # 当前目录绝对路径
 ROOT_PATH = REPO_ROOT
@@ -171,10 +177,15 @@ def refresh_runtime_class_config():
 	try:
 		with db_session() as db:
 			rows = db.query(EduClass).filter(EduClass.enabled == 1).order_by(EduClass.class_code.asc()).all()
-			configs = [
-				(row.class_name, row.class_code, validate_video_source(row.default_video_path))
-				for row in rows
-			]
+			configs = []
+			for row in rows:
+				# 正式课后分析由摄像设备配置来源；这里仅加载仍保留测试视频的实时演示班级。
+				if not row.default_video_path:
+					continue
+				try:
+					configs.append((row.class_name, row.class_code, validate_video_source(row.default_video_path)))
+				except ValueError as exc:
+					logger.warning("[Video] 跳过班级%s的演示视频: %s", row.class_name, exc)
 	except Exception as exc:
 		logger.warning("[Video] 刷新班级视频源失败: %s", exc)
 		return False
@@ -296,8 +307,65 @@ def _resolve_runtime_class(class_name = None, class_code = None):
 	return state["current_class"]
 
 
+def _resolve_course_context(db, class_id, started_at):
+	"""查找当前固定课表对应的课程和摄像头绑定。
+
+	演示入口仍可独立运行；若其发生在已配置的课表时段内，则把结果归入对应教学课程，
+	从而用于课后串联，而不是把演示视频配置写回班级信息。
+	"""
+	rows = (
+		db.query(EduLessonSchedule, TeachingCourse, EduAcademicTerm)
+		.join(TeachingCourse, TeachingCourse.id == EduLessonSchedule.teaching_course_id)
+		.join(EduAcademicTerm, EduAcademicTerm.id == TeachingCourse.term_id)
+		.filter(
+			TeachingCourse.class_id == class_id,
+			TeachingCourse.status == "ACTIVE",
+			EduLessonSchedule.enabled == 1,
+			EduAcademicTerm.status == "ENABLED",
+			EduAcademicTerm.start_date <= started_at.date(),
+			EduAcademicTerm.end_date >= started_at.date(),
+		)
+		.all()
+	)
+	for schedule, course, _term in rows:
+		if schedule.weekday != started_at.isoweekday():
+			continue
+		if course.start_date and started_at.date() < course.start_date:
+			continue
+		if course.end_date and started_at.date() > course.end_date:
+			continue
+		try:
+			start_at = datetime.combine(started_at.date(), datetime.strptime(schedule.start_time, "%H:%M").time())
+			end_at = datetime.combine(started_at.date(), datetime.strptime(schedule.end_time, "%H:%M").time())
+		except ValueError:
+			logger.warning("[Schedule] 课表%d的时间格式无效", schedule.id)
+			continue
+		if not (start_at <= started_at < end_at):
+			continue
+		binding = (
+			db.query(CameraClassBinding)
+			.filter(
+				CameraClassBinding.class_id == class_id,
+				CameraClassBinding.enabled == 1,
+				CameraClassBinding.effective_start_date <= started_at.date(),
+				(CameraClassBinding.effective_end_date.is_(None) | (CameraClassBinding.effective_end_date > started_at.date())),
+			)
+			.order_by(CameraClassBinding.effective_start_date.desc())
+			.first()
+		)
+		camera = (
+			db.query(CameraDevice)
+			.filter(CameraDevice.id == binding.camera_id, CameraDevice.enabled == 1)
+			.first()
+			if binding
+			else None
+		)
+		return course, schedule, binding, camera, start_at, end_at
+	return None, None, None, None, None, None
+
+
 def start_monitoring(class_name = None, class_code = None, teacher_id = None, operator_user_id = None, operator_name = None):
-	"""启动监控并尝试创建持久化会话；数据库异常不阻断实时监控。"""
+	"""启动管理员演示分析，并尝试创建或接续课后分析课次。"""
 	target_class = _resolve_runtime_class(class_name, class_code)
 	if target_class != state["current_class"] and target_class in state["class_list"]:
 		switch_class(target_class)
@@ -314,30 +382,52 @@ def start_monitoring(class_name = None, class_code = None, teacher_id = None, op
 			if not edu_class:
 				logger.warning("[Persist] 班级未入库，跳过会话持久化: %s", state["current_class"])
 				return None
-			teacher = db.query(EduTeacher).filter(EduTeacher.id == teacher_id).first() if teacher_id else None
-			session = MonitorSession(
-				session_no = _build_session_no(),
-				class_id = edu_class.id,
-				class_name = edu_class.class_name,
-				teacher_id = teacher.id if teacher else None,
-				teacher_name = teacher.teacher_name if teacher else None,
-				operator_user_id = operator_user_id,
-				operator_name = operator_name,
-				video_path = str(CLASS_VIDEOS[state["current_class"]]),
-				img_width = state["img_w"],
-				img_height = state["img_h"],
-				status = "RUNNING",
-				started_at = datetime.utcnow(),
-				last_heartbeat_at = datetime.utcnow(),
-				rule_config_json = {
-					"vlm_invoke_seconds": VLM_INVOKE_SECONDS,
-					"window_size": WINDOW_SIZE,
-					"desk_lying_warn_count": DESK_LYING_WARN_COUNT,
-					"other_alert_count": OTHER_ALERT_COUNT,
-					"normal_recover_count": NORMAL_RECOVER_COUNT,
-				},
-			)
-			db.add(session)
+			started_at = datetime.now()
+			course, schedule, binding, camera, planned_start, planned_end = _resolve_course_context(db, edu_class.id, started_at)
+			teacher = course.teacher if course else (db.query(EduTeacher).filter(EduTeacher.id == teacher_id).first() if teacher_id else None)
+			session = None
+			if schedule:
+				# 调度器可能已按课表创建待分析课次；管理员演示接续该记录，避免重复课次。
+				session = (
+					db.query(MonitorSession)
+					.filter(MonitorSession.schedule_id == schedule.id, MonitorSession.planned_started_at == planned_start)
+					.first()
+				)
+			if not session:
+				session = MonitorSession(
+					session_no = _build_session_no(),
+					class_id = edu_class.id,
+					class_name = edu_class.class_name,
+				)
+				db.add(session)
+			session.teacher_id = teacher.id if teacher else None
+			session.teacher_name = teacher.teacher_name if teacher else None
+			session.subject_id = course.subject_id if course else None
+			session.subject_name = course.subject.subject_name if course else None
+			session.lesson_title = schedule.lesson_title if schedule else None
+			session.term_id = course.term_id if course else None
+			session.teaching_course_id = course.id if course else None
+			session.schedule_id = schedule.id if schedule else None
+			session.camera_id = camera.id if camera else None
+			session.camera_binding_id = binding.id if binding else None
+			session.operator_user_id = operator_user_id
+			session.operator_name = operator_name
+			session.video_path = str(CLASS_VIDEOS[state["current_class"]])
+			session.img_width = state["img_w"]
+			session.img_height = state["img_h"]
+			session.status = "RUNNING"
+			session.analysis_status = "RUNNING"
+			session.planned_started_at = planned_start
+			session.planned_ended_at = planned_end
+			session.started_at = session.started_at or started_at
+			session.last_heartbeat_at = started_at
+			session.rule_config_json = {
+				"vlm_invoke_seconds": VLM_INVOKE_SECONDS,
+				"window_size": WINDOW_SIZE,
+				"desk_lying_warn_count": DESK_LYING_WARN_COUNT,
+				"other_alert_count": OTHER_ALERT_COUNT,
+				"normal_recover_count": NORMAL_RECOVER_COUNT,
+			}
 			db.flush()
 			persist_state["session_id"] = session.id
 			persist_state["class_id"] = edu_class.id
@@ -367,14 +457,22 @@ def stop_monitoring():
 			session = db.query(MonitorSession).filter(MonitorSession.id == session_id).first()
 			if session:
 				session.status = "STOPPED"
-				session.ended_at = datetime.utcnow()
-				session.last_heartbeat_at = datetime.utcnow()
+				# 课表以本机校园作息时间计算，结束时间须与创建课次使用同一时钟。
+				session.ended_at = datetime.now()
+				session.last_heartbeat_at = datetime.now()
 				session.total_seat_count = total_seat_count
 				session.warning_count = warning_count
 				session.notice_count = notice_count
 				session.event_count = event_count
 
 	_safe_persist(action, "结束监控会话")
+	if session_id:
+		# 前端停止后不再把结果作为实时告警处理，而是生成可追溯的课后汇总和报告草稿。
+		def finalize_action():
+			with db_session() as db:
+				finalize_lesson_analysis(db, session_id)
+
+		_safe_persist(finalize_action, "生成课后分析汇总")
 	persist_state["session_id"] = None
 	persist_state["class_id"] = None
 	persist_state["seat_db_ids"] = {}

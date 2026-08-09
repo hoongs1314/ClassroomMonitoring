@@ -100,8 +100,8 @@ onMounted(async () => {
   <div class="history-view">
     <header class="page-head">
       <div>
-        <h1>历史监控</h1>
-        <p>共 {{ total }} 条课堂监控记录</p>
+        <h1>全局课次档案</h1>
+        <p>跨班级查看共 {{ total }} 条可用于管理员排查的课次记录</p>
       </div>
       <div class="filters">
         <a-select
@@ -142,7 +142,7 @@ onMounted(async () => {
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'action'">
-          <a-button type="link" @click="openReview(record)">复盘</a-button>
+          <a-button type="link" @click="openReview(record)">查看报告</a-button>
         </template>
       </template>
     </a-table>

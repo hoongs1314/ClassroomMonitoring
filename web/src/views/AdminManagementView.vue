@@ -11,7 +11,6 @@ const loadingClasses = ref(false)
 const users = ref([])
 const classes = ref([])
 const teachers = ref([])
-const videoSources = ref([])
 
 const accountModalOpen = ref(false)
 const classModalOpen = ref(false)
@@ -41,7 +40,6 @@ const classColumns = [
   { title: '班级名称', dataIndex: 'class_name', width: 120 },
   { title: '年级', dataIndex: 'grade_name', width: 120 },
   { title: '班主任', dataIndex: 'head_teacher_name', width: 120 },
-  { title: '测试视频', dataIndex: 'default_video_path' },
   { title: '状态', key: 'enabled', width: 100 },
   { title: '操作', key: 'action', width: 160 },
 ]
@@ -103,12 +101,8 @@ async function loadClasses() {
 
 async function loadOptions() {
   try {
-    const [teacherData, sourceData] = await Promise.all([
-      requestJson('/api/admin/teachers'),
-      requestJson('/api/admin/video-sources'),
-    ])
+    const teacherData = await requestJson('/api/admin/teachers')
     teachers.value = (teacherData.teachers || []).filter((teacher) => teacher.status === 'ENABLED')
-    videoSources.value = sourceData.sources || []
   } catch (error) {
     message.error(error.message || '管理选项加载失败')
   }
@@ -193,7 +187,6 @@ function resetClassForm() {
     class_name: '',
     grade_name: '',
     academic_year: '',
-    default_video_path: '',
     head_teacher_id: undefined,
     enabled: true,
   }
@@ -212,7 +205,6 @@ function openEditClass(row) {
     class_name: row.class_name,
     grade_name: row.grade_name || '',
     academic_year: row.academic_year || '',
-    default_video_path: row.default_video_path,
     head_teacher_id: row.head_teacher_id || undefined,
     enabled: row.enabled,
   }
@@ -220,8 +212,8 @@ function openEditClass(row) {
 }
 
 async function saveClass() {
-  if (!classForm.value.class_code || !classForm.value.class_name || !classForm.value.default_video_path) {
-    message.warning('请填写班级编码、班级名称并选择测试视频')
+  if (!classForm.value.class_code || !classForm.value.class_name) {
+    message.warning('请填写班级编码和班级名称')
     return
   }
   try {
@@ -325,7 +317,7 @@ onMounted(async () => {
     <header class="page-head">
       <div>
         <h1>账号与班级管理</h1>
-        <p>维护系统账号、班级测试视频与教师授权范围。</p>
+        <p>维护系统账号、班级基础信息与教师授权范围。</p>
       </div>
     </header>
 
@@ -363,7 +355,7 @@ onMounted(async () => {
       <a-tab-pane key="classes" tab="班级管理">
         <section class="panel">
           <div class="toolbar">
-            <span>班级信息、测试视频和教师授权</span>
+            <span>班级信息与教师授权</span>
             <a-space>
               <a-button @click="loadClasses">刷新</a-button>
               <a-button type="primary" @click="openCreateClass">新增班级</a-button>
@@ -387,7 +379,7 @@ onMounted(async () => {
     </a-tabs>
 
     <a-modal v-model:open="accountModalOpen" :title="accountModalTitle" :width="620" @ok="saveAccount">
-      <a-form :label-col="{ span: 6 }" :wrapper-col="{ span: 16 }">
+      <a-form layout="vertical" class="modal-form">
         <a-form-item label="账号类型">
           <a-select v-model:value="accountForm.role_code" :disabled="Boolean(editingUser)">
             <a-select-option value="TEACHER">教师</a-select-option>
@@ -419,16 +411,11 @@ onMounted(async () => {
     </a-modal>
 
     <a-modal v-model:open="classModalOpen" :title="classModalTitle" :width="620" @ok="saveClass">
-      <a-form :label-col="{ span: 6 }" :wrapper-col="{ span: 16 }">
+      <a-form layout="vertical" class="modal-form">
         <a-form-item label="班级编码"><a-input v-model:value="classForm.class_code" /></a-form-item>
         <a-form-item label="班级名称"><a-input v-model:value="classForm.class_name" /></a-form-item>
         <a-form-item label="年级"><a-input v-model:value="classForm.grade_name" /></a-form-item>
         <a-form-item label="学年"><a-input v-model:value="classForm.academic_year" placeholder="例如：2026-2027" /></a-form-item>
-        <a-form-item label="测试视频">
-          <a-select v-model:value="classForm.default_video_path" placeholder="选择 inputs 目录内的视频">
-            <a-select-option v-for="source in videoSources" :key="source.path" :value="source.path">{{ source.name }}</a-select-option>
-          </a-select>
-        </a-form-item>
         <a-form-item label="班主任">
           <a-select v-model:value="classForm.head_teacher_id" allow-clear placeholder="可选">
             <a-select-option v-for="teacher in teachers" :key="teacher.id" :value="teacher.id">
@@ -460,7 +447,7 @@ onMounted(async () => {
     </a-modal>
 
     <a-modal v-model:open="scopeFormOpen" :title="editingScope ? '编辑教师授权' : '新增教师授权'" :width="540" @ok="saveScope">
-      <a-form :label-col="{ span: 7 }" :wrapper-col="{ span: 15 }">
+      <a-form layout="vertical" class="modal-form">
         <a-form-item label="教师">
           <a-select v-model:value="scopeForm.teacher_id" :disabled="Boolean(editingScope)" placeholder="选择教师">
             <a-select-option v-for="teacher in teachers" :key="teacher.id" :value="teacher.id">
