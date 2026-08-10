@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1040" viewBox="0 0 1600 1040">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="#52616b"/></marker>
+    <style>
+      .title{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:32px;font-weight:700;fill:#1f2933}.sub{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:17px;fill:#52616b}.head{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:21px;font-weight:700;fill:#24313a}.txt{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:16px;fill:#425466}.note{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:14px;fill:#5f6c72}.line{stroke:#52616b;stroke-width:2.7;fill:none;marker-end:url(#arrow)}.dash{stroke:#7d949e;stroke-width:2.4;fill:none;stroke-dasharray:8 7;marker-end:url(#arrow)}.tag{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:16px;font-weight:700;fill:#5b717b}
+    </style>
+  </defs>
+  <rect width="1600" height="1040" fill="#fff"/>
+  <text x="800" y="56" text-anchor="middle" class="title">课表到课程复盘业务流程图</text>
+  <text x="800" y="84" text-anchor="middle" class="sub">教学主数据建立课次归属，事件证据进入课程聚合；离线录像执行器为待接入环节</text>
+
+  <rect x="80" y="176" width="230" height="128" rx="16" fill="#e8f0f3" stroke="#66818d" stroke-width="2.2"/>
+  <text x="195" y="218" text-anchor="middle" class="head">管理员教学配置</text>
+  <text x="195" y="251" text-anchor="middle" class="txt">学年、学期、班级与课程</text>
+  <text x="195" y="279" text-anchor="middle" class="txt">固定课表与设备绑定</text>
+  <rect x="410" y="176" width="230" height="128" rx="16" fill="#e8f0f3" stroke="#66818d" stroke-width="2.2"/>
+  <text x="525" y="218" text-anchor="middle" class="head">任课教师归属</text>
+  <text x="525" y="251" text-anchor="middle" class="txt">教学课程关联教师</text>
+  <text x="525" y="279" text-anchor="middle" class="txt">班级卡片按班级聚合</text>
+  <rect x="740" y="176" width="230" height="128" rx="16" fill="#e8f0f3" stroke="#66818d" stroke-width="2.2"/>
+  <text x="855" y="218" text-anchor="middle" class="head">固定课表调度</text>
+  <text x="855" y="251" text-anchor="middle" class="txt">匹配学期、星期和课时</text>
+  <text x="855" y="279" text-anchor="middle" class="txt">创建待处理课次</text>
+  <rect x="1070" y="176" width="260" height="128" rx="16" fill="#fff9e8" stroke="#b49a62" stroke-width="2.2" stroke-dasharray="8 6"/>
+  <text x="1200" y="218" text-anchor="middle" class="head">真实录像离线执行器</text>
+  <text x="1200" y="251" text-anchor="middle" class="txt">读取录像、模型推理与回写</text>
+  <text x="1200" y="279" text-anchor="middle" class="note">待接入，尚无端到端实验结论</text>
+
+  <rect x="355" y="464" width="260" height="132" rx="16" fill="#e8f0f3" stroke="#66818d" stroke-width="2.2"/>
+  <text x="485" y="507" text-anchor="middle" class="head">课次与事件证据</text>
+  <text x="485" y="540" text-anchor="middle" class="txt">座位、行为事件、截图与 VLM 复核</text>
+  <text x="485" y="569" text-anchor="middle" class="txt">分析运行、摘要与行为统计</text>
+  <rect x="745" y="464" width="260" height="132" rx="16" fill="#e8f0f3" stroke="#66818d" stroke-width="2.2"/>
+  <text x="875" y="507" text-anchor="middle" class="head">课程分析聚合</text>
+  <text x="875" y="540" text-anchor="middle" class="txt">课次条目、周期汇总与来源追溯</text>
+  <text x="875" y="569" text-anchor="middle" class="txt">同班不同科目保持隔离</text>
+  <rect x="1135" y="464" width="260" height="132" rx="16" fill="#e8f0f3" stroke="#66818d" stroke-width="2.2"/>
+  <text x="1265" y="507" text-anchor="middle" class="head">教师课程复盘</text>
+  <text x="1265" y="540" text-anchor="middle" class="txt">课程报告、教学观察与改进措施</text>
+  <text x="1265" y="569" text-anchor="middle" class="txt">措施验证关联来源课次</text>
+
+  <rect x="615" y="756" width="370" height="132" rx="16" fill="#f2f6f7" stroke="#66818d" stroke-width="2.2"/>
+  <text x="800" y="798" text-anchor="middle" class="head">教师“我的班级”课后入口</text>
+  <text x="800" y="831" text-anchor="middle" class="txt">按请求时刻匹配当前课程，查看课次档案、汇总和课程报告</text>
+  <text x="800" y="860" text-anchor="middle" class="note">班级统计可以汇总；报告与措施始终以教学课程为边界</text>
+
+  <path d="M310 240 H410" class="line"/><path d="M640 240 H740" class="line"/><path d="M970 240 H1070" class="dash"/>
+  <path d="M1200 304 V382 H485 V464" class="dash"/><path d="M615 530 H745" class="line"/><path d="M1005 530 H1135" class="line"/>
+  <path d="M1265 596 V692 H800 V756" class="line"/><path d="M855 304 V382 H485 V464" class="line"/>
+  <text x="650" y="366" text-anchor="middle" class="tag">已实现：课表创建待处理课次</text>
+  <text x="1025" y="405" text-anchor="middle" class="tag">待接入：录像处理后写入事件证据</text>
+  <text x="800" y="976" text-anchor="middle" class="note">说明：图中实线表示当前教学配置、课程权限、课次归属和课程复盘的数据关系；虚线表示尚待接入的真实录像离线分析环节。</text>
+</svg>

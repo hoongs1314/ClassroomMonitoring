@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1040" viewBox="0 0 1600 1040">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="#5e7681"/></marker>
+    <style>
+      .title{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:32px;font-weight:700;fill:#1f2933}.sub{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:17px;fill:#52616b}.group{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:22px;font-weight:700;fill:#24313a}.table{font-family:'Consolas','Microsoft YaHei',sans-serif;font-size:17px;font-weight:700;fill:#fff}.field{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:15px;fill:#425466}.note{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:14px;fill:#5f6c72}.card{fill:#fff;stroke:#7f99a5;stroke-width:1.8}.bar{fill:#607d8b}.line{stroke:#5e7681;stroke-width:2.3;fill:none;marker-end:url(#arrow)}.label{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:15px;font-weight:700;fill:#4c6570}
+    </style>
+  </defs>
+  <rect width="1600" height="1040" fill="#fff"/>
+  <text x="800" y="56" text-anchor="middle" class="title">课后教学分析核心实体关系图</text>
+  <text x="800" y="84" text-anchor="middle" class="sub">以教学课程为权限边界，以课次、事件证据和课程报告为复盘数据链路</text>
+
+  <rect x="48" y="120" width="330" height="798" rx="18" fill="#f8fafb" stroke="#8ca3ad" stroke-width="2"/>
+  <text x="78" y="158" class="group">账号与权限</text>
+  <rect x="84" y="196" width="258" height="128" rx="10" class="card"/><rect x="84" y="196" width="258" height="36" rx="10" class="bar"/>
+  <text x="213" y="220" text-anchor="middle" class="table">sys_user / sys_role</text><text x="104" y="260" class="field">账号、角色与令牌</text><text x="104" y="289" class="field">管理员或教师身份</text>
+  <rect x="84" y="420" width="258" height="142" rx="10" class="card"/><rect x="84" y="420" width="258" height="36" rx="10" class="bar"/>
+  <text x="213" y="444" text-anchor="middle" class="table">edu_teacher</text><text x="104" y="484" class="field">教师档案与 user_id</text><text x="104" y="513" class="field">班级级授权 edu_teacher_class</text>
+
+  <rect x="420" y="120" width="390" height="798" rx="18" fill="#f8fafb" stroke="#8ca3ad" stroke-width="2"/>
+  <text x="450" y="158" class="group">教学主数据与固定课表</text>
+  <rect x="458" y="196" width="314" height="130" rx="10" class="card"/><rect x="458" y="196" width="314" height="36" rx="10" class="bar"/>
+  <text x="615" y="220" text-anchor="middle" class="table">edu_academic_year / term</text><text x="478" y="260" class="field">学年、学期与有效日期</text><text x="478" y="289" class="field">课程匹配的时间范围</text>
+  <rect x="458" y="382" width="314" height="172" rx="10" class="card"/><rect x="458" y="382" width="314" height="36" rx="10" class="bar"/>
+  <text x="615" y="406" text-anchor="middle" class="table">teaching_course</text><text x="478" y="446" class="field">班级、学期、科目、任课教师</text><text x="478" y="475" class="field">课程分析与报告的权限边界</text><text x="478" y="504" class="field">edu_lesson_schedule：星期与课时</text>
+  <rect x="458" y="626" width="314" height="130" rx="10" class="card"/><rect x="458" y="626" width="314" height="36" rx="10" class="bar"/>
+  <text x="615" y="650" text-anchor="middle" class="table">camera_class_binding</text><text x="478" y="690" class="field">camera_device 与 class_id</text><text x="478" y="719" class="field">录像来源的有效期绑定</text>
+
+  <rect x="850" y="120" width="330" height="798" rx="18" fill="#f8fafb" stroke="#8ca3ad" stroke-width="2"/>
+  <text x="880" y="158" class="group">课次与事件证据</text>
+  <rect x="886" y="196" width="258" height="150" rx="10" class="card"/><rect x="886" y="196" width="258" height="36" rx="10" class="bar"/>
+  <text x="1015" y="220" text-anchor="middle" class="table">monitor_session</text><text x="906" y="260" class="field">课程、课表与设备绑定快照</text><text x="906" y="289" class="field">一次课次的状态与统计</text><text x="906" y="318" class="field">lesson_analysis_run</text>
+  <rect x="886" y="438" width="258" height="188" rx="10" class="card"/><rect x="886" y="438" width="258" height="36" rx="10" class="bar"/>
+  <text x="1015" y="462" text-anchor="middle" class="table">行为与分析证据</text><text x="906" y="502" class="field">monitor_session_seat</text><text x="906" y="531" class="field">monitor_behavior_event</text><text x="906" y="560" class="field">monitor_event_frame / vlm_review</text><text x="906" y="589" class="field">lesson_summary / behavior_stat</text>
+
+  <rect x="1220" y="120" width="332" height="798" rx="18" fill="#f8fafb" stroke="#8ca3ad" stroke-width="2"/>
+  <text x="1250" y="158" class="group">课程复盘与改进闭环</text>
+  <rect x="1257" y="196" width="258" height="156" rx="10" class="card"/><rect x="1257" y="196" width="258" height="36" rx="10" class="bar"/>
+  <text x="1386" y="220" text-anchor="middle" class="table">course_analysis_entry</text><text x="1277" y="260" class="field">课次材料归属教学课程</text><text x="1277" y="289" class="field">course_analysis_aggregate</text><text x="1277" y="318" class="field">来源关系与行为统计</text>
+  <rect x="1257" y="452" width="258" height="156" rx="10" class="card"/><rect x="1257" y="452" width="258" height="36" rx="10" class="bar"/>
+  <text x="1386" y="476" text-anchor="middle" class="table">report / action</text><text x="1277" y="516" class="field">teaching_analysis_report</text><text x="1277" y="545" class="field">teaching_improvement_action</text><text x="1277" y="574" class="field">结论、措施与验证记录</text>
+
+  <path d="M342 260 H458" class="line"/><text x="398" y="247" text-anchor="middle" class="label">绑定</text>
+  <path d="M615 326 V382" class="line"/><text x="638" y="360" class="label">包含</text>
+  <path d="M772 468 H886" class="line"/><text x="829" y="455" text-anchor="middle" class="label">生成课次</text>
+  <path d="M1015 346 V438" class="line"/><text x="1038" y="400" class="label">产生</text>
+  <path d="M1144 532 H1257" class="line"/><text x="1200" y="519" text-anchor="middle" class="label">归集</text>
+  <path d="M1386 352 V452" class="line"/><text x="1408" y="410" class="label">形成</text>
+  <path d="M772 690 H850 V300 H886" class="line"/><text x="812" y="676" text-anchor="middle" class="label">设备快照</text>
+  <text x="800" y="976" text-anchor="middle" class="note">说明：图中为论文说明所需的核心实体分组和关系，完整字段、基数与一致性约束见 docs/database_er.md。</text>
+</svg>

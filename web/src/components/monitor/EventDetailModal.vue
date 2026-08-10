@@ -31,7 +31,10 @@ watch([() => props.open, () => props.eventData, () => props.eventId], async ([is
   if (!id) return
   loading.value = true
   try {
-    fetchedData.value = await requestJson(`/api/events/${id}`)
+    const data = await requestJson('/api/teacher/event/detail', {
+      headers: { 'X-Event-Id': String(id) },
+    })
+    fetchedData.value = data.event || null
   } catch {
     fetchedData.value = null
   } finally {
@@ -39,28 +42,25 @@ watch([() => props.open, () => props.eventData, () => props.eventId], async ([is
   }
 }, { immediate: true })
 
-const levelColor = (level) => {
-  if (level === 'STRONG') return 'red'
-  if (level === 'WEAK') return 'gold'
-  if (level === 'NORMAL') return 'green'
-  return 'default'
-}
-
 const statusText = (v) => {
   const map = {
-    DESK_LYING: '疑似趴桌',
+    DESK_LYING: '疑似睡觉',
     HEAD_DOWN: '疑似低头',
+    TURNING_HEAD: '疑似转头',
+    EATING: '疑似吃东西',
     NORMAL: '正常',
     UNCERTAIN: '无法确定',
     EMPTY: '空位',
-    STRONG: '明显异常',
-    WEAK: '轻度异常',
-    INVALID: '关键点不足',
   }
   return map[v] || v || '-'
 }
 
-const statusColor = (v) => (v === 'DESK_LYING' ? 'red' : 'blue')
+const statusColor = (v) => {
+  if (v === 'DESK_LYING' || v === 'EATING') return 'red'
+  if (v === 'HEAD_DOWN' || v === 'TURNING_HEAD') return 'orange'
+  if (v === 'NORMAL') return 'green'
+  return 'default'
+}
 
 const formatRatio = (v) => (v != null ? Number(v).toFixed(4) : '-')
 </script>
@@ -129,8 +129,8 @@ const formatRatio = (v) => (v != null ? Number(v).toFixed(4) : '-')
             </div>
             <div class="frame-info">
               <div class="frame-top">
-                <strong>第 {{ frame.frame_index }} 帧</strong>
-                <a-tag :color="levelColor(frame.seat?.status)">
+                <strong>第 {{ frame.frame_index + 1 }} 帧</strong>
+                <a-tag :color="statusColor(frame.seat?.status)">
                   {{ frame.seat?.status_text || statusText(frame.seat?.status) }}
                 </a-tag>
               </div>

@@ -1,4 +1,6 @@
 import { shallowRef, ref, onMounted, onUnmounted } from 'vue'
+import { resolveApiBase, resolveWebSocketBase } from './apiBase'
+import { handleUnauthorized, syncMediaSession } from './useApi'
 
 const status = shallowRef(null)
 const isConnected = ref(false)
@@ -12,8 +14,9 @@ let activeUsers = 0
 const MAX_RECONNECT_DELAY = 30000
 
 function getWsUrl() {
-  const API_BASE = window.MONITOR_API_BASE || 'http://localhost:8997'
-  return `${API_BASE.replace(/^http/, 'ws')}/ws`
+	const apiBase = resolveApiBase(window.MONITOR_API_BASE, import.meta.env.DEV, window.location)
+	const wsBase = resolveWebSocketBase(apiBase, window.location.origin)
+	return `${wsBase}/ws`
 }
 
 function scheduleReconnect(connectFn) {
@@ -26,10 +29,15 @@ function scheduleReconnect(connectFn) {
 }
 
 export function useWebSocket() {
-  const connect = () => {
-    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
-      return
-    }
+	const connect = async () => {
+		if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+			return
+		}
+		if (!await syncMediaSession()) {
+			error.value = 'WebSocket 鉴权准备失败'
+			if (activeUsers > 0 && localStorage.getItem('monitor_access_token')) scheduleReconnect(connect)
+			return
+		}
 
     error.value = null
     const url = getWsUrl()
@@ -73,9 +81,20 @@ export function useWebSocket() {
       }
     }
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       isConnected.value = false
       ws = null
+		if (event.code === 1008) {
+			void syncMediaSession(true).then((ready) => {
+				if (ready && activeUsers > 0) {
+					reconnectAttempts++
+					scheduleReconnect(connect)
+					return
+				}
+				handleUnauthorized()
+			})
+			return
+      }
       if (activeUsers > 0) {
         reconnectAttempts++
         scheduleReconnect(connect)

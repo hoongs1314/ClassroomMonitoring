@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1040" viewBox="0 0 1600 1040">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="#52616b"/></marker>
+    <style>
+      .title{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:32px;font-weight:700;fill:#1f2933}.sub{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:17px;fill:#52616b}.head{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:22px;font-weight:700;fill:#24313a}.txt{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:16px;fill:#425466}.note{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:14px;fill:#5f6c72}.white{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:20px;font-weight:700;fill:#fff}.line{stroke:#52616b;stroke-width:2.6;fill:none;marker-end:url(#arrow)}.dash{stroke:#7d949e;stroke-width:2.3;fill:none;stroke-dasharray:8 7;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="1600" height="1040" fill="#fff"/>
+  <text x="800" y="56" text-anchor="middle" class="title">课后教学分析系统总体架构图</text>
+  <text x="800" y="84" text-anchor="middle" class="sub">以教学课程、固定课表、课次证据和课程复盘为主线；演示监控按班级权限控制</text>
+
+  <rect x="48" y="122" width="112" height="830" rx="12" fill="#465a65"/>
+  <text x="104" y="540" text-anchor="middle" class="white" transform="rotate(-90 104 540)">用户与展示层</text>
+  <rect x="205" y="132" width="252" height="138" rx="14" fill="#e8f0f3" stroke="#8ca3ad" stroke-width="2"/>
+  <text x="331" y="171" text-anchor="middle" class="head">教师</text>
+  <text x="331" y="205" text-anchor="middle" class="txt">我的班级与当前课程</text>
+  <text x="331" y="232" text-anchor="middle" class="txt">课次档案、报告与改进措施</text>
+  <rect x="205" y="310" width="252" height="138" rx="14" fill="#e8f0f3" stroke="#8ca3ad" stroke-width="2"/>
+  <text x="331" y="349" text-anchor="middle" class="head">管理员</text>
+  <text x="331" y="383" text-anchor="middle" class="txt">教学配置、设备绑定与全局档案</text>
+  <text x="331" y="410" text-anchor="middle" class="txt">本地视频检测链路演示</text>
+
+  <rect x="518" y="132" width="342" height="316" rx="16" fill="#f2f6f7" stroke="#66818d" stroke-width="2.5"/>
+  <text x="689" y="170" text-anchor="middle" class="head">Vue 3 前端</text>
+  <line x1="552" y1="190" x2="826" y2="190" stroke="#b9c8ce" stroke-width="1.5"/>
+  <text x="689" y="229" text-anchor="middle" class="txt">登录与角色路由</text>
+  <text x="689" y="267" text-anchor="middle" class="txt">教学课程与固定周课表配置</text>
+  <text x="689" y="305" text-anchor="middle" class="txt">我的班级、课次档案与课程分析</text>
+  <text x="689" y="343" text-anchor="middle" class="txt">课程报告、改进措施与历史查询</text>
+  <text x="689" y="403" text-anchor="middle" class="note">管理员演示页使用 HTTP、MJPEG 与 WebSocket</text>
+
+  <rect x="925" y="132" width="390" height="316" rx="16" fill="#f2f6f7" stroke="#66818d" stroke-width="2.5"/>
+  <text x="1120" y="170" text-anchor="middle" class="head">FastAPI 业务服务</text>
+  <line x1="958" y1="190" x2="1282" y2="190" stroke="#b9c8ce" stroke-width="1.5"/>
+  <text x="1120" y="226" text-anchor="middle" class="txt">认证、角色与课程归属校验</text>
+  <text x="1120" y="262" text-anchor="middle" class="txt">教学配置、固定课表与设备绑定接口</text>
+  <text x="1120" y="298" text-anchor="middle" class="txt">课次档案、课程分析、报告与改进接口</text>
+  <text x="1120" y="334" text-anchor="middle" class="txt">课表调度服务与班级授权演示监控服务</text>
+  <text x="1120" y="402" text-anchor="middle" class="note">教学课程为报告和分析的权限边界</text>
+
+  <rect x="205" y="520" width="1110" height="250" rx="16" fill="#f8fafb" stroke="#66818d" stroke-width="2.5"/>
+  <text x="235" y="557" class="head">教学分析与证据处理</text>
+  <rect x="245" y="590" width="220" height="128" rx="12" fill="#e8f0f3" stroke="#9aafb8" stroke-width="1.8"/>
+  <text x="355" y="628" text-anchor="middle" class="head">固定课表调度</text>
+  <text x="355" y="660" text-anchor="middle" class="txt">创建课程关联的待处理课次</text>
+  <text x="355" y="689" text-anchor="middle" class="note">SCHEDULED / PENDING</text>
+  <rect x="542" y="590" width="220" height="128" rx="12" fill="#fff9e8" stroke="#b49a62" stroke-width="1.8" stroke-dasharray="8 6"/>
+  <text x="652" y="628" text-anchor="middle" class="head">录像离线执行器</text>
+  <text x="652" y="660" text-anchor="middle" class="txt">读取录像、推理与状态回写</text>
+  <text x="652" y="689" text-anchor="middle" class="note">待接入，不计为已验证能力</text>
+  <rect x="839" y="590" width="220" height="128" rx="12" fill="#e8f0f3" stroke="#9aafb8" stroke-width="1.8"/>
+  <text x="949" y="628" text-anchor="middle" class="head">事件证据处理</text>
+  <text x="949" y="660" text-anchor="middle" class="txt">YOLO/SAHI、规则与 VLM 复核</text>
+  <text x="949" y="689" text-anchor="middle" class="note">座位、截图、事件与复核记录</text>
+  <rect x="1136" y="590" width="140" height="128" rx="12" fill="#e8f0f3" stroke="#9aafb8" stroke-width="1.8"/>
+  <text x="1206" y="628" text-anchor="middle" class="head">课程聚合</text>
+  <text x="1206" y="660" text-anchor="middle" class="txt">条目、汇总</text>
+  <text x="1206" y="689" text-anchor="middle" class="txt">报告与措施</text>
+
+  <rect x="205" y="828" width="340" height="126" rx="14" fill="#e8f0f3" stroke="#8ca3ad" stroke-width="2"/>
+  <text x="375" y="866" text-anchor="middle" class="head">教学基础数据</text>
+  <text x="375" y="899" text-anchor="middle" class="txt">学年、学期、班级、课程、课表</text>
+  <text x="375" y="928" text-anchor="middle" class="txt">摄像设备与班级有效期绑定</text>
+  <rect x="640" y="828" width="340" height="126" rx="14" fill="#e8f0f3" stroke="#8ca3ad" stroke-width="2"/>
+  <text x="810" y="866" text-anchor="middle" class="head">MySQL 课次与复盘数据</text>
+  <text x="810" y="899" text-anchor="middle" class="txt">课次、事件、截图与分析运行</text>
+  <text x="810" y="928" text-anchor="middle" class="txt">课程汇总、报告与改进措施</text>
+  <rect x="1075" y="828" width="240" height="126" rx="14" fill="#e8f0f3" stroke="#8ca3ad" stroke-width="2"/>
+  <text x="1195" y="866" text-anchor="middle" class="head">本地开发资产</text>
+  <text x="1195" y="899" text-anchor="middle" class="txt">inputs 测试视频</text>
+  <text x="1195" y="928" text-anchor="middle" class="txt">models 与事件截图</text>
+
+  <path d="M457 201 H518" class="line"/><path d="M457 379 H518" class="line"/><path d="M860 290 H925" class="line"/>
+  <path d="M1120 448 V520" class="line"/><path d="M465 654 H542" class="dash"/><path d="M762 654 H839" class="dash"/><path d="M1059 654 H1136" class="line"/>
+  <path d="M375 828 V770 H355 V718" class="line"/><path d="M810 828 V770 H1206 V718" class="line"/><path d="M1195 828 V770 H949 V718" class="dash"/>
+  <text x="800" y="1005" text-anchor="middle" class="note">说明：实线表示已实现的数据结构、接口或聚合关系；虚线表示开发演示关联或尚待接入的真实录像处理能力。</text>
+</svg>

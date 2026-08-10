@@ -1,23 +1,47 @@
 <script setup>
-import { ref } from 'vue'
-import { useApi } from '@/composables/useApi'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { message } from 'ant-design-vue'
+import { syncMediaSession, useApi } from '@/composables/useApi'
 import AppSidebar from '@/components/common/AppSidebar.vue'
-import MonitorView from '@/views/MonitorView.vue'
 
 const { requestJson } = useApi()
 
 const sidebarCollapsed = ref(false)
-const currentClass = ref('1班')
+const currentClass = ref('')
+const currentClassCode = ref('')
+let mobileQuery
 
-async function handleSelectClass(cls) {
-  currentClass.value = cls
+function syncSidebarForViewport(event) {
+  // 小屏以图标栏起始，展开时作为覆盖式导航，避免挤压内容区。
+  sidebarCollapsed.value = event.matches
+}
+
+onMounted(() => {
+  mobileQuery = window.matchMedia('(max-width: 768px)')
+  syncSidebarForViewport(mobileQuery)
+	mobileQuery.addEventListener('change', syncSidebarForViewport)
+	void syncMediaSession()
+})
+
+onBeforeUnmount(() => {
+  mobileQuery?.removeEventListener('change', syncSidebarForViewport)
+})
+
+async function handleSelectClass(cls, classInfo = {}, synchronizeRuntime = true) {
+	const previousClass = currentClass.value
+	const previousClassCode = currentClassCode.value
+	currentClass.value = cls
+	currentClassCode.value = classInfo.class_code || ''
+	if (!synchronizeRuntime) return
   try {
     await requestJson('/api/switch_class', {
       method: 'POST',
       body: JSON.stringify({ class: cls }),
     })
-  } catch {
-    // 切换失败不影响前端显示
+  } catch (error) {
+	currentClass.value = previousClass
+	currentClassCode.value = previousClassCode
+	message.error(error.message || '班级切换失败')
   }
 }
 </script>
@@ -31,7 +55,7 @@ async function handleSelectClass(cls) {
       @select-class="handleSelectClass"
     />
     <main class="app-content">
-      <MonitorView :current-class="currentClass" />
+      <router-view :current-class="currentClass" :current-class-code="currentClassCode" />
     </main>
   </div>
 </template>
@@ -53,7 +77,13 @@ async function handleSelectClass(cls) {
 
 @media (max-width: 768px) {
   .app-layout {
-    flex-direction: column;
+    display: block;
+  }
+
+  .app-content {
+    height: 100%;
+    width: calc(100% - var(--sidebar-collapsed-width));
+    margin-left: var(--sidebar-collapsed-width);
   }
 }
 </style>

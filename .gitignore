@@ -1,10 +1,21 @@
-/dataset/
-/outputs/
+# 数据集与运行输出体积较大，仅保留结构说明和训练配置。
+/dataset/*
+!/dataset/README.md
+!/dataset/classroom_behavior.yaml
+/outputs/*
+!/outputs/README.md
 /yolo26x-pose_openvino_model/
 __pycache__/
 *.pt
+# 试运行课堂视频不进入版本控制，避免误提交大文件或敏感素材。
+/inputs/*
+!/inputs/README.md
+.env
+/deploy/.env.production
 .idea
 .vscode
 .DS_Store
+~$*.doc
+~$*.docx
 node_modules/
 dist/

@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test tests/apiBase.test.mjs"
   },
   "dependencies": {
     "@ant-design/icons-vue": "^7.0.1",

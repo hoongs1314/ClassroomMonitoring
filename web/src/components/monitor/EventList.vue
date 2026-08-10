@@ -13,42 +13,66 @@ const emit = defineEmits(['select'])
 
 const { mediaUrl } = useApi()
 
-const filterStatus = ref('')
+// 按告警等级筛选：空字符串=全部，警告/提示
+const filterLevel = ref('')
 
 const filteredEvents = computed(() => {
-  if (!filterStatus.value) return props.events
-  return props.events.filter((e) => e.status === filterStatus.value)
+  if (!filterLevel.value) return props.events
+  return props.events.filter((e) => e.level === filterLevel.value)
 })
 
 const totalCount = computed(() => props.events.length)
-const deskLyingCount = computed(() => props.events.filter((e) => e.status === 'DESK_LYING').length)
-const headDownCount = computed(() => props.events.filter((e) => e.status === 'HEAD_DOWN').length)
+const warnCount = computed(() => props.events.filter((e) => e.level === '警告').length)
+const alertCount = computed(() => props.events.filter((e) => e.level === '提示').length)
 
-const statusColor = (status) => (status === 'DESK_LYING' ? 'red' : 'blue')
+// 卡片右侧标签颜色：按原始检测状态区分
+function statusColor(status) {
+  if (status === 'DESK_LYING') return 'red'
+  if (status === 'EATING') return 'red'
+  if (status === 'HEAD_DOWN') return 'orange'
+  if (status === 'TURNING_HEAD') return 'orange'
+  return 'blue'
+}
+
+// 卡片左边框颜色：按告警等级区分
+function levelBorderColor(level) {
+  if (level === '警告') return '#f5222d'
+  if (level === '提示') return '#fa8c16'
+  return 'var(--border-default)'
+}
 
 function getEventId(e) {
   return e.event_id || e.id
 }
 
-function getLabel(e) {
-  if (e.label) return e.label
-  if (e.status === 'DESK_LYING') return '疑似趴桌'
-  if (e.status === 'HEAD_DOWN') return '疑似低头'
-  return e.list_title || '异常行为'
+// 卡片右侧标签文字：原始检测标签
+function getStatusTag(status) {
+  if (status === 'DESK_LYING') return '睡觉'
+  if (status === 'HEAD_DOWN') return '低头'
+  if (status === 'TURNING_HEAD') return '转头'
+  if (status === 'EATING') return '吃东西'
+  return status
 }
 
 function getSeatName(e) {
   return e.seat_name || e.seat || '-'
+}
+
+function getSourceLabel(e) {
+  const source = e.analysis_source || e.source || '-'
+  if (source === 'DETECT') return '检测'
+  if (source === 'VLM') return 'VLM'
+  return source
 }
 </script>
 
 <template>
   <div class="event-list">
     <div class="filter-bar">
-      <a-radio-group v-model:value="filterStatus" size="small" button-style="solid">
+      <a-radio-group v-model:value="filterLevel" size="small" button-style="solid">
         <a-radio-button value="">全部 ({{ totalCount }})</a-radio-button>
-        <a-radio-button value="DESK_LYING">趴桌 ({{ deskLyingCount }})</a-radio-button>
-        <a-radio-button value="HEAD_DOWN">低头 ({{ headDownCount }})</a-radio-button>
+        <a-radio-button value="警告">警告 ({{ warnCount }})</a-radio-button>
+        <a-radio-button value="提示">提示 ({{ alertCount }})</a-radio-button>
       </a-radio-group>
     </div>
 
@@ -61,6 +85,8 @@ function getSeatName(e) {
         v-for="item in filteredEvents"
         :key="getEventId(item)"
         class="event-card"
+        :class="{ 'without-image': !(item.list_image_url || item.url) }"
+        :style="{ borderLeftColor: levelBorderColor(item.level) }"
         role="option"
         tabindex="0"
         @click="emit('select', getEventId(item))"
@@ -69,7 +95,7 @@ function getSeatName(e) {
         <div v-if="item.list_image_url || item.url" class="event-image">
           <img
             :src="mediaUrl(item.list_image_url || item.url)"
-            :alt="getLabel(item)"
+            :alt="getStatusTag(item.status)"
           />
           <span class="event-time">{{
             item.alert_start_time || item.time || ''
@@ -77,14 +103,23 @@ function getSeatName(e) {
         </div>
 
         <div class="event-body">
-          <div class="event-seat">座位：{{ getSeatName(item) }}</div>
+          <div class="event-seat">
+            <strong>座位 {{ getSeatName(item) }}</strong>
+            <a-tag v-if="item.level" :color="item.level === '警告' ? 'red' : 'orange'" size="small">
+              {{ item.level }}
+            </a-tag>
+          </div>
+          <div class="event-meta">
+            <span>来源：{{ getSourceLabel(item) }}</span>
+            <span>{{ item.alert_start_time || item.time || '时间待同步' }}</span>
+          </div>
           <div class="event-action">
-            智能分析：{{ item.reason}}
+            智能分析：{{ item.reason || '等待模型分析...' }}
           </div>
         </div>
 
         <a-tag :color="statusColor(item.status)">
-          {{ getLabel(item) }}
+          {{ getStatusTag(item.status) }}
         </a-tag>
       </article>
     </div>
@@ -125,6 +160,7 @@ function getSeatName(e) {
   gap: 14px;
   padding: 10px 12px 10px 10px;
   border: 1px solid var(--border-default);
+  border-left-width: 4px;
   border-radius: var(--radius-md);
   background: var(--bg-elevated);
   transition: transform var(--duration-fast) var(--ease-out),
@@ -136,6 +172,9 @@ function getSeatName(e) {
   transform: translateY(-1px);
   border-color: var(--border-hover);
   box-shadow: var(--shadow-glow-primary);
+}
+.event-card.without-image {
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .event-image {
@@ -167,11 +206,16 @@ function getSeatName(e) {
   min-width: 0;
 }
 .event-seat,
+.event-meta,
 .event-action {
   font-size: 14px;
   color: var(--text-secondary);
   line-height: 1.7;
 }
+.event-seat { display: flex; align-items: center; gap: 6px; color: var(--text-primary); }
+.event-seat strong { font-weight: 700; }
+.event-meta { display: flex; gap: 8px; color: var(--text-muted); font-size: 12px; }
+.event-action { display: -webkit-box; overflow: hidden; margin-top: 2px; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .event-action strong {
   color: var(--color-danger);
   font-weight: 700;
@@ -204,5 +248,33 @@ function getSeatName(e) {
   font-size: 40px;
   opacity: 0.3;
   margin-bottom: 10px;
+}
+
+@media (max-width: 640px) {
+  .filter-bar :deep(.ant-radio-group) {
+    display: flex;
+    flex-wrap: wrap;
+  }
+  .event-card {
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 10px;
+  }
+  .event-card.without-image {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .event-image {
+    width: 96px;
+    height: 54px;
+  }
+  .event-card > :deep(.ant-tag) {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .event-card.without-image > :deep(.ant-tag) {
+    grid-column: 2;
+  }
+  .event-meta {
+    flex-wrap: wrap;
+  }
 }
 </style>

@@ -5,9 +5,15 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   VideoCameraFilled,
+  HistoryOutlined,
+  LogoutOutlined,
+  SettingOutlined,
+  ReadOutlined,
+  CalendarOutlined,
 } from '@ant-design/icons-vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useWebSocket } from '@/composables/useWebSocket'
-import { useApi } from '@/composables/useApi'
+import { useApi, getStoredUser } from '@/composables/useApi'
 
 defineProps({
   collapsed: Boolean,
@@ -17,27 +23,59 @@ defineProps({
 const emit = defineEmits(['toggle', 'select-class'])
 
 const { isConnected, status } = useWebSocket()
-const { requestJson } = useApi()
+const { requestJson, clearAuth } = useApi()
+const router = useRouter()
+const route = useRoute()
 
 const classList = ref([])
 const activeClass = ref('')
+const currentUser = ref(getStoredUser())
+const isAdmin = computed(() => currentUser.value?.roles?.includes('ADMIN'))
+
+function normalizeClass(item) {
+  if (typeof item === 'string') {
+    return { class_name: item, class_code: '' }
+  }
+  return item || { class_name: '', class_code: '' }
+}
 
 onMounted(async () => {
-  try {
-    const data = await requestJson('/api/classes')
-    classList.value = data.classes || []
-    activeClass.value = data.current || classList.value[0] || ''
-  } catch {
-    classList.value = ['1班', '2班', '3班', '4班']
-    activeClass.value = '1班'
+	try {
+		const data = await requestJson(isAdmin.value ? '/api/classes' : '/api/teacher/classes')
+		classList.value = (data.classes || []).map(normalizeClass)
+		const initial = classList.value.find((item) => item.class_name === data.current) || classList.value[0]
+		activeClass.value = initial?.class_name || ''
+		// 父布局必须与服务端返回的实际班级同步，但初始化不触发一次无意义的切换请求。
+		if (initial) emit('select-class', initial.class_name, initial, false)
+	} catch (error) {
+	if (error.status !== 404) return
+		try {
+			const data = await requestJson('/api/classes')
+			classList.value = (data.classes || []).map(normalizeClass)
+			const initial = classList.value.find((item) => item.class_name === data.current) || classList.value[0]
+			activeClass.value = initial?.class_name || ''
+			if (initial) emit('select-class', initial.class_name, initial, false)
+    } catch {
+      classList.value = []
+      activeClass.value = ''
+    }
   }
 })
 
 const currentClassName = computed(() => status.value?.current_class || activeClass.value)
+const navSelected = computed(() => [route.name || 'monitor'])
+const showDemoClassSelector = computed(() => route.name === 'monitor')
 
 function handleSelect(cls) {
-  activeClass.value = cls
-  emit('select-class', cls)
+  const selected = classList.value.find((item) => item.class_name === cls) || normalizeClass(cls)
+  activeClass.value = selected.class_name
+  emit('select-class', selected.class_name, selected)
+}
+
+function handleLogout() {
+  requestJson('/api/auth/logout', { method: 'POST' }).catch(() => {})
+  clearAuth()
+  router.push({ name: 'login' })
 }
 </script>
 
@@ -47,12 +85,41 @@ function handleSelect(cls) {
       <div class="logo-icon">
         <VideoCameraFilled />
       </div>
-      <span v-show="!collapsed" class="logo-text">课堂监测</span>
+      <span v-show="!collapsed" class="logo-text">课后教学分析</span>
     </div>
 
     <div class="sidebar-section">
-      <span v-show="!collapsed" class="section-label">监控班级</span>
       <a-menu
+        :selected-keys="navSelected"
+        :inline-collapsed="collapsed"
+        mode="inline"
+        theme="dark"
+        class="sidebar-menu compact"
+      >
+        <a-menu-item key="classes" @click="router.push({ name: 'classes' })">
+          <template #icon><ReadOutlined /></template>
+          <span>我的班级</span>
+        </a-menu-item>
+        <a-menu-item v-if="isAdmin" key="history" @click="router.push({ name: 'history' })">
+          <template #icon><HistoryOutlined /></template>
+          <span>全局课次档案</span>
+        </a-menu-item>
+        <a-menu-item v-if="isAdmin" key="monitor" @click="router.push({ name: 'monitor' })">
+          <template #icon><VideoCameraFilled /></template>
+          <span>演示监控</span>
+        </a-menu-item>
+        <a-menu-item v-if="isAdmin" key="admin" @click="router.push({ name: 'admin' })">
+          <template #icon><SettingOutlined /></template>
+          <span>账号与班级管理</span>
+        </a-menu-item>
+        <a-menu-item v-if="isAdmin" key="teaching-setup" @click="router.push({ name: 'teaching-setup' })">
+          <template #icon><CalendarOutlined /></template>
+          <span>教学与设备配置</span>
+        </a-menu-item>
+      </a-menu>
+      <span v-if="showDemoClassSelector" v-show="!collapsed" class="section-label">演示班级</span>
+      <a-menu
+        v-if="showDemoClassSelector"
         :selected-keys="[currentClassName]"
         :inline-collapsed="collapsed"
         mode="inline"
@@ -60,19 +127,22 @@ function handleSelect(cls) {
         class="sidebar-menu"
         @click="({ key }) => handleSelect(key)"
       >
-        <a-menu-item v-for="cls in classList" :key="cls">
+        <a-menu-item v-for="cls in classList" :key="cls.class_name">
           <template #icon><TeamOutlined /></template>
-          <span>{{ cls }}</span>
+          <span>{{ cls.class_name }}</span>
         </a-menu-item>
       </a-menu>
     </div>
 
     <div class="sidebar-footer">
-      <div class="status-row" :class="{ connected: isConnected }">
-        <span class="status-dot"></span>
-        <span v-show="!collapsed" class="status-text">
-          {{ isConnected ? '已连接' : '未连接' }}
-        </span>
+      <div class="footer-main">
+        <div class="status-row" :class="{ connected: isConnected }">
+          <span class="status-dot"></span>
+          <span v-show="!collapsed" class="status-text">
+            {{ isConnected ? '已连接' : '未连接' }}
+          </span>
+        </div>
+        <div v-show="!collapsed" class="user-name">{{ currentUser?.real_name || currentUser?.username || '未登录' }}</div>
       </div>
       <a-button
         type="text"
@@ -81,6 +151,9 @@ function handleSelect(cls) {
       >
         <MenuFoldOutlined v-if="!collapsed" />
         <MenuUnfoldOutlined v-else />
+      </a-button>
+      <a-button type="text" class="toggle-btn" title="退出登录" @click="handleLogout">
+        <LogoutOutlined />
       </a-button>
     </div>
   </aside>
@@ -150,6 +223,11 @@ function handleSelect(cls) {
   border-inline-end: none !important;
   overflow-y: auto;
 }
+.sidebar-menu.compact {
+  flex: 0 0 auto;
+  padding-top: 0;
+  border-bottom: 1px solid var(--border-default);
+}
 
 .sidebar-footer {
   display: flex;
@@ -159,6 +237,9 @@ function handleSelect(cls) {
   border-top: 1px solid var(--border-default);
   flex-shrink: 0;
   min-height: 48px;
+}
+.footer-main {
+  min-width: 0;
 }
 
 .status-row {
@@ -182,6 +263,15 @@ function handleSelect(cls) {
   color: var(--text-muted);
   white-space: nowrap;
 }
+.user-name {
+  margin-top: 4px;
+  max-width: 128px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
 
 .toggle-btn {
   color: var(--text-muted) !important;
@@ -193,5 +283,18 @@ function handleSelect(cls) {
 }
 .toggle-btn:hover {
   color: var(--text-primary) !important;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 1000;
+    height: 100dvh;
+  }
+
+  .sidebar:not(.collapsed) {
+    box-shadow: var(--shadow-elevated);
+  }
 }
 </style>

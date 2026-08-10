@@ -15,14 +15,22 @@ import { useApi } from '@/composables/useApi'
 import VideoPlayer from '@/components/monitor/VideoPlayer.vue'
 import StatsCard from '@/components/monitor/StatsCard.vue'
 import EventList from '@/components/monitor/EventList.vue'
+import EventDetailModal from '@/components/monitor/EventDetailModal.vue'
 import SeatMapModal from '@/components/monitor/SeatMapModal.vue'
 
 const { status, isConnected } = useWebSocket()
 const { requestJson } = useApi()
 
+const props = defineProps({
+  currentClass: { type: String, default: '' },
+  currentClassCode: { type: String, default: '' },
+})
+
 const starting = ref(false)
 const monitorStarted = ref(false)
 const showSeatMap = ref(false)
+const showEventDetail = ref(false)
+const selectedEventId = ref(null)
 
 watch(() => status.value?.is_running, (val) => {
   if (val != null) monitorStarted.value = val
@@ -33,7 +41,9 @@ const counts = computed(() => status.value?.counts || { total: 0, focus: 0, norm
 function statusLabel(statusCode) {
   const map = {
     HEAD_DOWN: '疑似低头',
-    DESK_LYING: '疑似趴桌',
+    DESK_LYING: '疑似睡觉',
+    TURNING_HEAD: '疑似转头',
+    EATING: '疑似吃东西',
     UNCERTAIN: '无法确定',
     EMPTY: '未看到可分析学生',
     NORMAL: '正常或未见明显异常',
@@ -51,6 +61,8 @@ const events = computed(() => {
       seat_name: e.seat_name || e.seat || '-',
       list_title: e.list_title || e.label || statusLabel(e.status),
       alert_start_time: e.alert_start_time || e.time,
+      source: e.source || e.analysis_source || '-',
+      analysis_source: e.analysis_source || e.source || '-',
     }
   })
 })
@@ -59,11 +71,11 @@ const phaseText = computed(() => {
   if (!status.value) return '-'
   const map = {
     init: '正在建立座位图',
-    monitor: '正在监控',
-    done: '监控完成',
+    monitor: '正在分析演示视频',
+    done: '演示分析完成',
     error: '运行失败',
   }
-  return map[status.value.phase] || (status.value.is_running ? '正在监控' : '待启动')
+  return map[status.value.phase] || (status.value.is_running ? '正在分析演示视频' : '待启动')
 })
 
 const phaseType = computed(() => {
@@ -76,6 +88,8 @@ const phaseType = computed(() => {
 
 const seatMapUrl = computed(() => status.value?.seat_map_url || '')
 
+const videoFeedUrl = computed(() => '/video_feed')
+
 const imgSize = computed(() => ({
   w: status.value?.img_w || 1920,
   h: status.value?.img_h || 1080,
@@ -83,17 +97,21 @@ const imgSize = computed(() => ({
 
 const seats = computed(() => status.value?.seats || [])
 
+function encodeHeaderText(value) {
+  return encodeURIComponent(value || '')
+}
+
 async function startMonitor() {
   starting.value = true
   try {
-    let result
-    try {
-      result = await requestJson('/api/start', { method: 'POST' })
-    } catch {
-      result = await requestJson('/api/monitor/start', { method: 'POST' })
+    const className = props.currentClass || status.value?.current_class || ''
+    const headers = {
+      ...(props.currentClassCode ? { 'X-Class-Code': props.currentClassCode } : {}),
+      ...(!props.currentClassCode && className ? { 'X-Class-Name': encodeHeaderText(className) } : {}),
     }
+    const result = await requestJson('/api/start', { method: 'POST', headers })
     monitorStarted.value = true
-    message.success(result?.message || '监控已启动')
+    message.success(result?.message || '演示分析已启动')
   } catch (error) {
     message.error(error.message || '启动失败')
   } finally {
@@ -103,20 +121,21 @@ async function startMonitor() {
 
 async function stopMonitor() {
   try {
-    try {
-      await requestJson('/api/stop', { method: 'POST' })
-    } catch {
-      await requestJson('/api/monitor/stop', { method: 'POST' })
-    }
-  } catch {
-    // ignore
+    await requestJson('/api/stop', { method: 'POST' })
+    monitorStarted.value = false
+    message.success('演示分析已停止，课后结果已归档')
+  } catch (error) {
+    message.error(error.message || '结束演示分析失败')
   }
-  monitorStarted.value = false
-  message.success('监控已停止')
 }
 
 function openSeatMap() {
   showSeatMap.value = true
+}
+
+function openEventDetail(eventId) {
+  selectedEventId.value = eventId
+  showEventDetail.value = true
 }
 </script>
 
@@ -129,8 +148,8 @@ function openSeatMap() {
           <SafetyCertificateOutlined />
         </div>
         <div>
-          <h1 class="brand-title">课堂异常行为监测系统</h1>
-          <p class="brand-subtitle">AI 智能识别 · 实时预警 · 规范课堂秩序</p>
+          <h1 class="brand-title">课堂行为课后分析演示</h1>
+          <p class="brand-subtitle">AI 智能识别 · 演示视频分析 · 课后教学复盘</p>
         </div>
       </div>
 
@@ -143,9 +162,9 @@ function openSeatMap() {
           {{ phaseText }}
         </a-tag>
         <a-button v-if="!monitorStarted && !status?.is_running" type="primary" :loading="starting" @click="startMonitor">
-          启动监控
+          启动演示分析
         </a-button>
-        <a-button v-else danger @click="stopMonitor">停止监控</a-button>
+        <a-button v-else danger @click="stopMonitor">结束演示分析</a-button>
       </div>
     </header>
 
@@ -156,14 +175,14 @@ function openSeatMap() {
         <div class="panel-bar">
           <h2 class="panel-title">
             <span class="title-icon"><DesktopOutlined /></span>
-            主监控画面
+            演示分析画面
           </h2>
           <span class="panel-time">{{ status?.current_time || status?.time || '--:--:--' }}</span>
         </div>
 
         <VideoPlayer
           mode="mjpeg"
-          mjpeg-url="/video_feed"
+          :mjpeg-url="videoFeedUrl"
           :live="monitorStarted"
           :img-w="imgSize.w"
           :img-h="imgSize.h"
@@ -177,7 +196,7 @@ function openSeatMap() {
           <div class="panel-bar">
             <h2 class="panel-title">
               <span class="title-icon"><DashboardOutlined /></span>
-              实时统计
+              当前统计
             </h2>
           </div>
           <div class="stats-grid">
@@ -190,13 +209,13 @@ clickable
               @click="openSeatMap"
             />
             <StatsCard
-              :label="'重点提醒'"
+              :label="'警告'"
               :value="counts.focus"
               type="danger"
               :icon="AlertOutlined"
             />
             <StatsCard
-              :label="'普通提醒'"
+              :label="'提示'"
               :value="counts.normal"
               type="warning"
               :icon="BellOutlined"
@@ -208,14 +227,15 @@ clickable
           <div class="panel-bar">
             <h2 class="panel-title">
               <span class="title-icon"><BulbOutlined /></span>
-              异常行为通知
+              识别事件
             </h2>
           </div>
-          <EventList :events="events" />
+          <EventList :events="events" @select="openEventDetail" />
         </section>
       </aside>
     </main>
     <SeatMapModal v-model:open="showSeatMap" :seat-map-url="seatMapUrl" :current-class="status?.current_class || ''" :seats="seats" :img-w="imgSize.w" :img-h="imgSize.h" />
+    <EventDetailModal v-model:open="showEventDetail" :event-id="selectedEventId" />
   </div>
 </template>
 
@@ -363,12 +383,23 @@ clickable
 
 /* === 响应式 === */
 @media (max-width: 1100px) {
+  .monitor-view {
+    overflow: auto;
+  }
   .main-grid {
+    flex: none;
     grid-template-columns: 1fr;
+    min-height: auto;
   }
   .side-rail {
     grid-template-rows: auto auto;
     max-height: none;
+  }
+  .video-panel {
+    min-height: 360px;
+  }
+  .event-panel {
+    min-height: 320px;
   }
 }
 
@@ -377,6 +408,8 @@ clickable
     padding: 8px;
   }
   .topbar {
+    align-items: flex-start;
+    flex-wrap: wrap;
     padding: 12px 16px;
   }
   .brand-title {
@@ -386,6 +419,8 @@ clickable
     display: none;
   }
   .top-actions {
+    width: 100%;
+    justify-content: space-between;
     flex-wrap: wrap;
     gap: 8px;
   }

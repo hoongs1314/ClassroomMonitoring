@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1040" viewBox="0 0 1600 1040">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="#52616b"/></marker>
+    <style>
+      .title{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:32px;font-weight:700;fill:#1f2933}.sub{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:17px;fill:#52616b}.head{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:22px;font-weight:700;fill:#24313a}.txt{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:16px;fill:#425466}.note{font-family:'Microsoft YaHei','SimHei',sans-serif;font-size:14px;fill:#5f6c72}.line{stroke:#52616b;stroke-width:2.7;fill:none;marker-end:url(#arrow)}.dash{stroke:#7d949e;stroke-width:2.4;fill:none;stroke-dasharray:8 7;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="1600" height="1040" fill="#fff"/>
+  <text x="800" y="56" text-anchor="middle" class="title">课堂异常行为检测项目全景图</text>
+  <text x="800" y="84" text-anchor="middle" class="sub">从数据准备、视觉识别到教师课后课程复盘的应用型项目结构</text>
+
+  <rect x="58" y="132" width="425" height="780" rx="18" fill="#f8fafb" stroke="#66818d" stroke-width="2.4"/>
+  <text x="270" y="175" text-anchor="middle" class="head">数据与模型准备</text>
+  <line x1="92" y1="194" x2="449" y2="194" stroke="#b9c8ce" stroke-width="1.5"/>
+  <rect x="100" y="240" width="340" height="128" rx="14" fill="#e8f0f3" stroke="#8ca3ad" stroke-width="1.8"/>
+  <text x="270" y="280" text-anchor="middle" class="head">课堂视频与样本帧</text>
+  <text x="270" y="313" text-anchor="middle" class="txt">受控录像、开发测试视频与脱敏材料</text>
+  <text x="270" y="342" text-anchor="middle" class="note">数据来源和使用范围需单独记录</text>
+  <rect x="100" y="432" width="340" height="172" rx="14" fill="#fff9e8" stroke="#b49a62" stroke-width="1.8" stroke-dasharray="8 6"/>
+  <text x="270" y="474" text-anchor="middle" class="head">标注、训练与离线评估</text>
+  <text x="270" y="507" text-anchor="middle" class="txt">NORMAL、HEAD_DOWN、DESK_LYING</text>
+  <text x="270" y="535" text-anchor="middle" class="txt">TURNING_HEAD、EATING</text>
+  <text x="270" y="570" text-anchor="middle" class="note">模型指标必须以独立实验记录为准</text>
+  <rect x="100" y="668" width="340" height="116" rx="14" fill="#e8f0f3" stroke="#8ca3ad" stroke-width="1.8"/>
+  <text x="270" y="710" text-anchor="middle" class="head">本地部署模型资产</text>
+  <text x="270" y="745" text-anchor="middle" class="txt">YOLO 权重与 SAHI 推理配置</text>
+
+  <rect x="588" y="132" width="425" height="780" rx="18" fill="#f8fafb" stroke="#66818d" stroke-width="2.4"/>
+  <text x="800" y="175" text-anchor="middle" class="head">系统实现与事件留痕</text>
+  <line x1="622" y1="194" x2="979" y2="194" stroke="#b9c8ce" stroke-width="1.5"/>
+  <rect x="630" y="240" width="340" height="128" rx="14" fill="#e8f0f3" stroke="#8ca3ad" stroke-width="1.8"/>
+  <text x="800" y="280" text-anchor="middle" class="head">教学组织数据</text>
+  <text x="800" y="313" text-anchor="middle" class="txt">学年、学期、班级、课程、固定周课表</text>
+  <text x="800" y="342" text-anchor="middle" class="txt">摄像设备与班级有效期绑定</text>
+  <rect x="630" y="432" width="340" height="172" rx="14" fill="#e8f0f3" stroke="#8ca3ad" stroke-width="1.8"/>
+  <text x="800" y="474" text-anchor="middle" class="head">事件证据与分析版本</text>
+  <text x="800" y="507" text-anchor="middle" class="txt">YOLO/SAHI、座位关联、连续规则</text>
+  <text x="800" y="535" text-anchor="middle" class="txt">截图、行为事件与 VLM 复核</text>
+  <text x="800" y="570" text-anchor="middle" class="note">真实录像离线执行器待接入</text>
+  <rect x="630" y="668" width="340" height="116" rx="14" fill="#e8f0f3" stroke="#8ca3ad" stroke-width="1.8"/>
+  <text x="800" y="710" text-anchor="middle" class="head">FastAPI 与 MySQL</text>
+  <text x="800" y="745" text-anchor="middle" class="txt">认证、权限、课次档案与课程聚合</text>
+
+  <rect x="1118" y="132" width="425" height="780" rx="18" fill="#f8fafb" stroke="#66818d" stroke-width="2.4"/>
+  <text x="1330" y="175" text-anchor="middle" class="head">教师课后教学复盘</text>
+  <line x1="1152" y1="194" x2="1509" y2="194" stroke="#b9c8ce" stroke-width="1.5"/>
+  <rect x="1160" y="240" width="340" height="128" rx="14" fill="#e8f0f3" stroke="#8ca3ad" stroke-width="1.8"/>
+  <text x="1330" y="280" text-anchor="middle" class="head">管理员教学配置</text>
+  <text x="1330" y="313" text-anchor="middle" class="txt">课程与教师归属、设备绑定</text>
+  <text x="1330" y="342" text-anchor="middle" class="txt">管理员保留检测链路演示入口</text>
+  <rect x="1160" y="432" width="340" height="172" rx="14" fill="#e8f0f3" stroke="#8ca3ad" stroke-width="1.8"/>
+  <text x="1330" y="474" text-anchor="middle" class="head">我的班级与课程分析</text>
+  <text x="1330" y="507" text-anchor="middle" class="txt">班级卡片、当前课程与课次档案</text>
+  <text x="1330" y="535" text-anchor="middle" class="txt">课程汇总、报告与改进措施</text>
+  <text x="1330" y="570" text-anchor="middle" class="note">报告和措施以教学课程为边界</text>
+  <rect x="1160" y="668" width="340" height="116" rx="14" fill="#e8f0f3" stroke="#8ca3ad" stroke-width="1.8"/>
+  <text x="1330" y="710" text-anchor="middle" class="head">教学反馈材料</text>
+  <text x="1330" y="745" text-anchor="middle" class="txt">人工观察、改进计划与验证记录</text>
+
+  <path d="M270 368 V432" class="dash"/><path d="M270 604 V668" class="dash"/><path d="M440 726 H630" class="line"/>
+  <path d="M970 304 H1160" class="line"/><path d="M970 518 H1160" class="line"/><path d="M800 368 V432" class="line"/><path d="M800 604 V668" class="line"/><path d="M1330 368 V432" class="line"/><path d="M1330 604 V668" class="line"/>
+  <text x="800" y="976" text-anchor="middle" class="note">说明：项目已实现教学配置、课程权限、课次档案与课程复盘的数据和接口主链路；模型指标、真实录像处理和长期运行须以独立实验或集成测试补充。</text>
+</svg>

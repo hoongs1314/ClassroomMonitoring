@@ -1,0 +1,17 @@
+.git
+.idea
+.vscode
+__pycache__
+*.pyc
+.venv
+venv
+env
+web/node_modules
+web/dist
+web/dist-ssr
+inputs
+outputs
+models
+*.pt
+*.log
+.env

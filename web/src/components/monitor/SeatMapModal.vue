@@ -25,8 +25,13 @@ const statusMap = {
 const getS = (s) => statusMap[s] || statusMap.NORMAL
 
 const frameUrl = computed(() => {
-  const token = [props.currentClass, props.open, props.imgW, props.imgH, props.seats.length].join('-')
-  return mediaUrl('/api/latest_frame') + '?class=' + encodeURIComponent(props.currentClass) + '&v=' + encodeURIComponent(token) + '&t=' + Date.now()
+  const cacheKey = [props.currentClass, props.open, props.imgW, props.imgH, props.seats.length].join('-')
+  const params = new URLSearchParams({
+    class: props.currentClass,
+    v: cacheKey,
+    t: String(Date.now()),
+  })
+	return `${mediaUrl('/api/latest_frame')}?${params.toString()}`
 })
 
 function boxStyle(box) {
